@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 تاريخ المسمار والشاكوش — Shorts Motion 🎨</title>
+
+    <!-- روابط الخطوط الرسمية -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: #080a0f; color: #ffffff;
+            font-family: 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+        #viewport {
+            position: relative;
+            /* 9:16 Shorts Preview: 420x746 (Internal Canvas: 1080x1920) */
+            width: 420px; height: 746px;
+            background: #f5f5f5;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65);
+            border-radius: 20px; overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        #hud {
+            position: absolute; top: 16px; right: 16px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px);
+            color: #010101; padding: 6px 14px; border-radius: 30px;
+            font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.06); z-index: 10;
+        }
+        .spinner {
+            width: 12px; height: 12px; border: 2px solid #e5e5e5;
+            border-top: 2px solid #0a0f1d; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #controls-overlay {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10; background: rgba(10, 15, 29, 0.92);
+            padding: 6px 12px; border-radius: 40px; backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn {
+            font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 14px;
+            border-radius: 20px; border: none; cursor: pointer; display: flex;
+            align-items: center; gap: 6px; transition: all 0.2s ease;
+        }
+        .btn-preview { background: rgba(255, 255, 255, 0.12); color: #f8fafc; }
+        .btn-preview:hover { background: rgba(255, 255, 255, 0.22); }
+        .btn-render { background: #0a0f1d; color: #ffffff; }
+        .btn-render:hover { background: #1e293b; }
+        #console-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 650px; max-width: 90vw; height: 380px; background: #0a0f1d;
+            border: 1px solid #1e293b; border-radius: 12px; box-shadow: 0 30px 70px rgba(0,0,0,0.7);
+            z-index: 100; display: none; flex-direction: column; overflow: hidden;
+        }
+        #console-header {
+            background: #1e293b; padding: 10px 16px; display: flex;
+            justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold;
+        }
+        #console-output {
+            flex: 1; padding: 12px; overflow-y: auto; font-family: monospace;
+            font-size: 12px; color: #cbd5e1; background: #070a12; line-height: 1.5;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-info { color: #38bdf8; }
+        .log-warn { color: #facc15; }
+        .log-error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div id="viewport">
+        <canvas id="videoCanvas"></canvas>
+        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري تحضير المشهد...</span></div>
+        <div id="controls-overlay">
+            <button class="btn btn-preview" id="btn-replay"><i class="ph ph-arrow-counter-clockwise"></i> تشغيل المعاينة</button>
+            <button class="btn btn-preview" id="btn-toggle-console"><i class="ph ph-terminal-window"></i> سجل الأخطاء</button>
+            <button class="btn btn-render" id="btn-render-start"><i class="ph-fill ph-video-camera"></i> تصدير الفيديو</button>
+        </div>
+    </div>
+
+    <div id="console-modal">
+        <div id="console-header">
+            <span><i class="ph ph-terminal-window"></i> سجل النظام والأخطاء</span>
+            <button class="btn btn-preview" id="btn-close-console" style="color:#fff; background:#ff4444; border:none; padding:4px 14px;">إغلاق</button>
+        </div>
+        <div id="console-output"></div>
+    </div>
+
+    <script type="module">
+        // ============ 🎨 طبقة الهوية بالكامل — هنا ============
+        const CONFIG = {
+            fps: 30,
+            width: 1080,   // المقاس الرأسي 9:16 Shorts
+            height: 1920,
+            duration: 8.0
+        };
+
+        const OUTPUT_FILENAME = "nail_and_hammer_history_shorts";
+        const audioBuffer = null;
+
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+        function easeOutBack(t) {
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        }
+
+        async function prepareIdentity() {
+            await document.fonts.ready;
+        }
+
+        // ==================== 🛠️ رسم المسمار الفيكتوري ثلاثي الأبعاد (Vector Steel Nail) ====================
+        function drawVectorNail(ctx, x, y, scale = 1, angle = 0, driveDepth = 0) {
+            ctx.save();
+            ctx.translate(x, y + driveDepth);
+            ctx.rotate(angle);
+            ctx.scale(scale, scale);
+
+            // ظل المسمار
+            ctx.shadowColor = "rgba(10, 15, 29, 0.22)";
+            ctx.shadowBlur = 24;
+            ctx.shadowOffsetY = 12;
+
+            // 1. رأس المسمار الدائري الفولاذي (Nail Head)
+            const headGrad = ctx.createLinearGradient(-45, -150, 45, -150);
+            headGrad.addColorStop(0, "#cbd5e1");
+            headGrad.addColorStop(0.3, "#ffffff");
+            headGrad.addColorStop(0.7, "#64748b");
+            headGrad.addColorStop(1, "#334155");
+
+            ctx.beginPath();
+            ctx.roundRect(-45, -165, 90, 22, 6);
+            ctx.fillStyle = headGrad;
+            ctx.fill();
+
+            // حد رأس المسمار
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+
+            // 2. ساق المسمار (Nail Shaft)
+            const shaftGrad = ctx.createLinearGradient(-18, -145, 18, 120);
+            shaftGrad.addColorStop(0, "#94a3b8");
+            shaftGrad.addColorStop(0.35, "#ffffff");
+            shaftGrad.addColorStop(0.7, "#475569");
+            shaftGrad.addColorStop(1, "#1e293b");
+
+            ctx.beginPath();
+            ctx.moveTo(-16, -145);
+            ctx.lineTo(16, -145);
+            ctx.lineTo(12, 130);
+            ctx.lineTo(-12, 130);
+            ctx.closePath();
+            ctx.fillStyle = shaftGrad;
+            ctx.fill();
+
+            // حزوز التثبيت على الساق (Grip Ridges)
+            for (let r = 0; r < 4; r++) {
+                const ry = -120 + r * 26;
+                ctx.beginPath();
+                ctx.roundRect(-18, ry, 36, 7, 3);
+                ctx.fillStyle = "#64748b";
+                ctx.fill();
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+            }
+
+            // 3. سن المسمار المدبب (Nail Point Tip)
+            const tipGrad = ctx.createLinearGradient(-12, 130, 12, 180);
+            tipGrad.addColorStop(0, "#ffffff");
+            tipGrad.addColorStop(0.5, "#64748b");
+            tipGrad.addColorStop(1, "#0f172a");
+
+            ctx.beginPath();
+            ctx.moveTo(-12, 130);
+            ctx.lineTo(12, 130);
+            ctx.lineTo(0, 185); // القمة الحادة
+            ctx.closePath();
+            ctx.fillStyle = tipGrad;
+            ctx.fill();
+
+            // خط لمعان طولي ناصع
+            ctx.beginPath();
+            ctx.moveTo(-2, -140);
+            ctx.lineTo(-2, 160);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // ==================== 🔨 رسم الشاكوش الفيكتوري الصلب (Vector Steel Hammer) ====================
+        function drawVectorHammer(ctx, x, y, scale = 1, angle = 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.scale(scale, scale);
+
+            // ظل الشاكوش
+            ctx.shadowColor = "rgba(10, 15, 29, 0.25)";
+            ctx.shadowBlur = 35;
+            ctx.shadowOffsetY = 18;
+
+            // 1. مقبض الشاكوش (Hammer Handle with Ergonomic Grip)
+            const handleGrad = ctx.createLinearGradient(-22, -50, 22, 380);
+            handleGrad.addColorStop(0, "#f8fafc");
+            handleGrad.addColorStop(0.5, "#cbd5e1");
+            handleGrad.addColorStop(1, "#0f172a");
+
+            ctx.beginPath();
+            ctx.roundRect(-18, -40, 36, 420, 18);
+            ctx.fillStyle = handleGrad;
+            ctx.fill();
+
+            // مقبض مطاطي مانع للانزلاق بلون أزرق ياقوتي/برتقالي
+            const gripGrad = ctx.createLinearGradient(-22, 140, 22, 380);
+            gripGrad.addColorStop(0, "#ea580c");
+            gripGrad.addColorStop(0.5, "#c2410c");
+            gripGrad.addColorStop(1, "#0a0f1d");
+
+            ctx.beginPath();
+            ctx.roundRect(-21, 150, 42, 225, 16);
+            ctx.fillStyle = gripGrad;
+            ctx.fill();
+
+            // حزوز المقبض المطاطي
+            ctx.shadowColor = "transparent";
+            for (let g = 0; g < 7; g++) {
+                ctx.fillStyle = "#0f172a";
+                ctx.fillRect(-21, 180 + g * 25, 42, 6);
+            }
+
+            // 2. رأس الشاكوش الفولاذي (Polished Steel Head & Claw)
+            const headGrad = ctx.createLinearGradient(-140, -110, 140, -40);
+            headGrad.addColorStop(0, "#ffffff");
+            headGrad.addColorStop(0.3, "#94a3b8");
+            headGrad.addColorStop(0.7, "#334155");
+            headGrad.addColorStop(1, "#0f172a");
+
+            // جزء الطرق الأيمن (Striking Face)
+            ctx.beginPath();
+            ctx.roundRect(-30, -95, 120, 65, 8);
+            ctx.fillStyle = headGrad;
+            ctx.fill();
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // وجه الطرق المربع
+            ctx.beginPath();
+            ctx.roundRect(80, -98, 22, 71, 4);
+            ctx.fillStyle = "#e2e8f0";
+            ctx.fill();
+            ctx.stroke();
+
+            // مخلب خلع المسامير الأيسر المقوس (Curved Claw)
+            ctx.beginPath();
+            ctx.moveTo(-25, -95);
+            ctx.bezierCurveTo(-80, -90, -135, -50, -145, 10);
+            ctx.bezierCurveTo(-125, -15, -80, -45, -25, -45);
+            ctx.closePath();
+            ctx.fillStyle = headGrad;
+            ctx.fill();
+            ctx.stroke();
+
+            // لمعة الفولاذ المصقول
+            ctx.beginPath();
+            ctx.moveTo(-10, -85);
+            ctx.lineTo(75, -85);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+            ctx.lineWidth = 3.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // رسم كارت معلومات زجاجي فاخر
+        function drawGlassInfoCard(ctx, x, y, w, h, radius, tagAr, tagEn, titleAr, descAr, statAr, accentColor, progress = 1) {
+            if (progress <= 0) return;
+
+            ctx.save();
+            ctx.translate(x, y);
+            const scale = 0.85 + 0.15 * easeOutBack(progress);
+            ctx.scale(scale, scale);
+            ctx.globalAlpha = clamp01(progress);
+
+            // ظل الكارت
+            ctx.shadowColor = "rgba(10, 15, 29, 0.1)";
+            ctx.shadowBlur = 35;
+            ctx.shadowOffsetY = 16;
+
+            // جسم الكارت الزجاجي
+            ctx.beginPath();
+            ctx.roundRect(-w / 2, -h / 2, w, h, radius);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+            ctx.fill();
+
+            // الحد العاكس
+            ctx.shadowColor = "transparent";
+            const borderGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+            borderGrad.addColorStop(0, "#ffffff");
+            borderGrad.addColorStop(0.35, accentColor);
+            borderGrad.addColorStop(0.8, "rgba(226, 232, 240, 0.85)");
+            borderGrad.addColorStop(1, "rgba(255, 255, 255, 0.5)");
+            ctx.strokeStyle = borderGrad;
+            ctx.lineWidth = 2.0;
+            ctx.stroke();
+
+            // شارة التصنيف العلوية
+            const badgeW = 200, badgeH = 34;
+            ctx.beginPath();
+            ctx.roundRect(w / 2 - badgeW - 28, -h / 2 + 28, badgeW, badgeH, 17);
+            ctx.fillStyle = "rgba(15, 23, 42, 0.05)";
+            ctx.fill();
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+
+            ctx.font = "800 12px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = accentColor;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(tagEn, w / 2 - badgeW / 2 - 28, -h / 2 + 45);
+
+            // العنوان الرئيسي (عريض وبارز)
+            ctx.font = "900 36px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#0a0f1d";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "top";
+            ctx.fillText(titleAr, w / 2 - 28, -h / 2 + 82);
+
+            // الوصف التوضيحي
+            ctx.font = "500 20px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#475569";
+            ctx.fillText(descAr, w / 2 - 28, -h / 2 + 138);
+
+            // شريط الإحصائية السفلي
+            ctx.beginPath();
+            ctx.roundRect(-w / 2 + 28, h / 2 - 58, w - 56, 40, 20);
+            ctx.fillStyle = accentColor;
+            ctx.fill();
+
+            ctx.font = "800 15px 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(statAr, 0, h / 2 - 38);
+
+            ctx.restore();
+        }
+
+        async function drawSceneAtTime(time) {
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // 1. بيئة الاستوديو الفاتحة النقية في الوضع الرأسي (Shorts Canvas)
+            const bgGrad = ctx.createRadialGradient(
+                CONFIG.width / 2, CONFIG.height / 2, 100,
+                CONFIG.width / 2, CONFIG.height / 2, CONFIG.height * 0.7
+            );
+            bgGrad.addColorStop(0, "#ffffff");
+            bgGrad.addColorStop(0.65, "#f6f7fa");
+            bgGrad.addColorStop(1, "#eaecf1");
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // شبكة هندسية دقيقة
+            ctx.strokeStyle = "rgba(10, 15, 29, 0.035)";
+            ctx.lineWidth = 1;
+            const gridSize = 60;
+            for (let x = 0; x < CONFIG.width; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CONFIG.height); ctx.stroke();
+            }
+            for (let y = 0; y < CONFIG.height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CONFIG.width, y); ctx.stroke();
+            }
+
+            // 2. محرك الكاميرا المتصلة الرأسية (Continuous Vertical Camera Motion)
+            let camY = CONFIG.height / 2;
+            let camZoom = 1.0;
+
+            if (time < 3.8) {
+                const p = easeInOutCubic(time / 3.8);
+                camY = CONFIG.height / 2 - 30 + p * 30;
+                camZoom = 1.05;
+            } else if (time < 4.6) {
+                const p = easeInOutCubic((time - 3.8) / 0.8);
+                camY = CONFIG.height / 2 + Math.sin(p * Math.PI) * 50;
+                camZoom = 1.05 + Math.sin(p * Math.PI) * 0.08;
+            } else if (time < 7.2) {
+                camY = CONFIG.height / 2;
+                camZoom = 1.05;
+            } else {
+                const p = easeInOutCubic((time - 7.2) / 0.8);
+                camZoom = 1.05 - p * 0.15;
+            }
+
+            ctx.save();
+            ctx.translate(CONFIG.width / 2, CONFIG.height / 2);
+            ctx.scale(camZoom, camZoom);
+            ctx.translate(-CONFIG.width / 2, -camY);
+
+            // ==================== 3. المرحلة الأولى: المسمار الفيكتوري (0s -> 3.8s) ====================
+            if (time < 4.2) {
+                const nailAlpha = time < 3.8 ? 1.0 : clamp01((4.2 - time) / 0.4);
+                ctx.save();
+                ctx.globalAlpha = nailAlpha;
+
+                const nailRot = -0.25 + Math.sin(time * 2.5) * 0.12;
+                const nailX = CONFIG.width / 2;
+                const nailY = 620;
+
+                ctx.beginPath();
+                ctx.arc(nailX, nailY, 180, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(2, 132, 199, 0.08)";
+                ctx.fill();
+
+                drawVectorNail(ctx, nailX, nailY, 1.8, nailRot);
+
+                const inP = clamp01(time / 0.8);
+                drawGlassInfoCard(
+                    ctx,
+                    CONFIG.width / 2, 1240, 920, 270, 32,
+                    "تاريخ الابتكار", "THE NAIL · 3400 B.C.",
+                    "المسمار: ثورة التشييد الأولى",
+                    "بدأ في مصر القديمة وعصر البرونز قبل 5400 عام، وحوّل الخشب إلى هياكل ومدن ضخمة.",
+                    "أول مسامير مصبوبة ومطروقة: 3400 قبل الميلاد",
+                    "#0284c7", inP
+                );
+
+                ctx.restore();
+            }
+
+            // ==================== 4. التأثير الحركي للانتقال الزمني (3.8s -> 4.6s) ====================
+            if (time >= 3.6 && time <= 4.8) {
+                const warpP = (time - 3.6) / 1.2;
+                ctx.save();
+                ctx.translate(CONFIG.width / 2, 700);
+
+                for (let w = 0; w < 3; w++) {
+                    const wp = (warpP + w * 0.3) % 1.0;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, wp * 450, 0, Math.PI * 2);
+                    ctx.strokeStyle = "#ea580c";
+                    ctx.lineWidth = 3;
+                    ctx.globalAlpha = (1 - wp) * 0.6;
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // ==================== 5. المرحلة الثانية: الشاكوش الفولاذي وقوة الطرق (4.2s -> 8.0s) ====================
+            if (time >= 4.0) {
+                const hammerAlpha = clamp01((time - 4.0) / 0.4);
+                ctx.save();
+                ctx.globalAlpha = hammerAlpha;
+
+                let hammerAngle = -0.55;
+                let hammerDriveY = 0;
+
+                if (time >= 4.4 && time < 5.2) {
+                    const strikeP = (time - 4.4) / 0.8;
+                    if (strikeP < 0.4) {
+                        hammerAngle = -0.55 - (strikeP / 0.4) * 0.45;
+                    } else {
+                        const hitP = (strikeP - 0.4) / 0.6;
+                        hammerAngle = -1.0 + easeOutBack(hitP) * 0.95;
+                        hammerDriveY = hitP * 40;
+                    }
+                } else if (time >= 5.2) {
+                    hammerAngle = -0.05 + Math.sin(time * 2) * 0.03;
+                    hammerDriveY = 40;
+                }
+
+                drawVectorNail(ctx, CONFIG.width / 2, 780, 1.4, 0, hammerDriveY);
+                drawVectorHammer(ctx, CONFIG.width / 2 + 130, 480, 1.65, hammerAngle);
+
+                if (time >= 4.8 && time < 5.8) {
+                    const ripP = (time - 4.8) / 1.0;
+                    ctx.beginPath();
+                    ctx.arc(CONFIG.width / 2, 720, 20 + ripP * 180, 0, Math.PI * 2);
+                    ctx.strokeStyle = "#ea580c";
+                    ctx.lineWidth = 3.5;
+                    ctx.globalAlpha = (1 - ripP) * 0.8;
+                    ctx.stroke();
+                }
+
+                const inP2 = clamp01((time - 4.2) / 0.8);
+                drawGlassInfoCard(
+                    ctx,
+                    CONFIG.width / 2, 1380, 920, 270, 32,
+                    "أقدم أداة للبشرية", "THE HAMMER · 3.3M YEARS",
+                    "الشاكوش: مضاعف القوة الديناميكية",
+                    "بدأ كحجر أملس قبل 3.3 مليون عام، وتطور ليصبح أعظم أداة ميكانيكية لمضاعفة طاقة الدفع.",
+                    "طاقة الطرق الصدمية: 450+ نيوتن/سم²",
+                    "#ea580c", inP2
+                );
+
+                ctx.restore();
+            }
+
+            // ==================== 6. الهيدر الترحيبي العلوي للشورتس ====================
+            ctx.save();
+            ctx.translate(CONFIG.width / 2, 130);
+
+            ctx.beginPath();
+            ctx.roundRect(-240, -26, 480, 52, 26);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+            ctx.shadowColor = "rgba(10, 15, 29, 0.08)";
+            ctx.shadowBlur = 20;
+            ctx.fill();
+
+            ctx.strokeStyle = "rgba(226, 232, 240, 0.9)";
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+
+            ctx.font = "800 16px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#0a0f1d";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("سلسلة تاريخ الابتكارات  ·  المسمار والشاكوش", 0, 0);
+
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        // ============ ⚙️ الطبقة التقنية الثابتة — من هنا تحت ============
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const statusText = document.getElementById('status-text');
+        const spinner = document.getElementById('spinner');
+
+        let audioAudioEl = null;
+        let sharedAudioCtx = null;
+        let state = { currentTime: 0, isRendering: false, animationFrameId: null };
+
+        window.renderStatus = 'loading';
+
+        function logToConsole(msg, type = 'info') {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clamp01(val) { return Math.max(0, Math.min(1, val)); }
+
+        function layoutArabicParagraph(text, font, maxWidth, wordGap, lineHeight, centerY) {
+            ctx.font = font;
+            const words = text.split(' ');
+            const lines = [];
+            let currentWords = [], currentWidth = 0;
+
+            words.forEach(w => {
+                const wordWidth = ctx.measureText(w).width;
+                const testWidth = currentWidth + (currentWords.length > 0 ? wordGap : 0) + wordWidth;
+                if (testWidth > maxWidth && currentWords.length > 0) {
+                    lines.push({ words: currentWords, width: currentWidth });
+                    currentWords = []; currentWidth = 0;
+                }
+                currentWords.push({ text: w, width: wordWidth });
+                currentWidth += (currentWords.length > 1 ? wordGap : 0) + wordWidth;
+            });
+            if (currentWords.length) lines.push({ words: currentWords, width: currentWidth });
+
+            const totalHeight = lines.length * lineHeight;
+            const startY = centerY - totalHeight / 2 + lineHeight / 2;
+            const flatWords = [];
+
+            lines.forEach((line, li) => {
+                const lineY = startY + li * lineHeight;
+                let currentX = (CONFIG.width / 2) + (line.width / 2);
+                line.words.forEach(w => {
+                    const wx = currentX - w.width;
+                    flatWords.push({ text: w.text, x: wx + w.width / 2, y: lineY });
+                    currentX -= (w.width + wordGap);
+                });
+            });
+            return flatWords;
+        }
+
+        function audioBufferToWavBlob(buffer) {
+            const numOfChan = buffer.numberOfChannels;
+            const length = buffer.length * numOfChan * 2 + 44;
+            const out = new DataView(new ArrayBuffer(length));
+            let channels = [], sample, offset = 0, pos = 0;
+
+            function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+            function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+            setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+            setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+            setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+            setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164);
+            setUint32(length - pos - 4);
+
+            for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+
+            while (offset < buffer.length) {
+                for (let i = 0; i < numOfChan; i++) {
+                    sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+                    out.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+
+            return new Blob([out], { type: "audio/wav" });
+        }
+
+        function getSharedAudioContext() {
+            if (!sharedAudioCtx) sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return sharedAudioCtx;
+        }
+
+        async function fetchAndDecodeAudio(url) {
+            if (!/^https:\/\//i.test(url)) throw new Error(`رابط صوت غير آمن: ${url}`);
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`فشل جلب الصوت: ${url}`);
+            const arrayBuf = await res.arrayBuffer();
+            if (arrayBuf.byteLength < 1024) throw new Error(`حجم الملف صغير جداً: ${url}`);
+            return getSharedAudioContext().decodeAudioData(arrayBuf);
+        }
+
+        function concatenateAudioBuffers(buffers) {
+            if (!buffers || buffers.length === 0) throw new Error("مفيش أي AudioBuffer لتلزيقه");
+            const sampleRate = buffers[0].sampleRate;
+            const channelsCount = buffers[0].numberOfChannels;
+            const totalSamples = buffers.reduce((sum, b) => sum + b.length, 0);
+            const combined = getSharedAudioContext().createBuffer(channelsCount, totalSamples, sampleRate);
+
+            let sampleOffset = 0, timeOffset = 0.0;
+            const segments = [];
+
+            for (const buf of buffers) {
+                for (let ch = 0; ch < channelsCount; ch++) {
+                    combined.getChannelData(ch).set(buf.getChannelData(ch), sampleOffset);
+                }
+                const duration = buf.duration;
+                segments.push({ start: timeOffset, end: timeOffset + duration, duration });
+                sampleOffset += buf.length;
+                timeOffset += duration;
+            }
+            return { buffer: combined, segments };
+        }
+
+        async function createBrollFrameSampler(url, options = {}) {
+            const videoEl = document.createElement('video');
+            videoEl.crossOrigin = 'anonymous'; videoEl.muted = true;
+            videoEl.playsInline = true; videoEl.preload = 'auto'; videoEl.src = url;
+
+            await new Promise((resolve, reject) => {
+                videoEl.onloadeddata = resolve;
+                videoEl.onerror = () => reject(new Error(`فشل تحميل فيديو B-roll: ${url}`));
+            });
+
+            const targetW = options.width || videoEl.videoWidth;
+            const targetH = options.height || videoEl.videoHeight;
+            const fit = options.fit || 'cover';
+            const sampleCanvas = document.createElement('canvas');
+            sampleCanvas.width = targetW; sampleCanvas.height = targetH;
+            const sampleCtx = sampleCanvas.getContext('2d');
+
+            sampleCtx.drawImage(videoEl, 0, 0, 1, 1);
+            let corsOk = true;
+            try { sampleCtx.getImageData(0, 0, 1, 1); } catch (e) { corsOk = false; }
+
+            if (!corsOk && options.posterFallbackUrl) {
+                const posterImg = new Image(); posterImg.crossOrigin = 'anonymous';
+                await new Promise((resolve, reject) => {
+                    posterImg.onload = resolve;
+                    posterImg.onerror = () => reject(new Error(`فشل تحميل صورة fallback: ${options.posterFallbackUrl}`));
+                    posterImg.src = options.posterFallbackUrl;
+                });
+                return {
+                    videoEl: null, isFallbackImage: true,
+                    async getFrameAt(time) {
+                        const zoom = 1.0 + Math.min(time / 10, 1) * 0.06;
+                        const iw = posterImg.naturalWidth, ih = posterImg.naturalHeight;
+                        const scale = Math.max(targetW / iw, targetH / ih) * zoom;
+                        const dw = iw * scale, dh = ih * scale;
+                        const dx = (targetW - dw) / 2, dy = (targetH - dh) / 2;
+                        sampleCtx.clearRect(0, 0, targetW, targetH);
+                        sampleCtx.drawImage(posterImg, dx, dy, dw, dh);
+                        return sampleCanvas;
+                    }
+                };
+            }
+
+            if (!corsOk) throw new Error(`فيديو B-roll لا يدعم CORS: ${url}`);
+            const useFrameCallback = typeof videoEl.requestVideoFrameCallback === 'function';
+
+            return {
+                videoEl,
+                async getFrameAt(time) {
+                    const seekTime = Math.min(Math.max(time, 0), Math.max(videoEl.duration - 0.01, 0));
+                    await new Promise((resolve, reject) => {
+                        const timeoutId = setTimeout(() => reject(new Error(`تأخر الفريم عند ${seekTime}s: ${url}`)), 5000);
+                        if (useFrameCallback) {
+                            videoEl.requestVideoFrameCallback(() => { clearTimeout(timeoutId); resolve(); });
+                        } else {
+                            videoEl.onseeked = () => { clearTimeout(timeoutId); resolve(); };
+                        }
+                        videoEl.currentTime = seekTime;
+                    });
+
+                    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+                    const scale = fit === 'contain' ? Math.min(targetW / vw, targetH / vh) : Math.max(targetW / vw, targetH / vh);
+                    const dw = vw * scale, dh = vh * scale;
+                    const dx = (targetW - dw) / 2, dy = (targetH - dh) / 2;
+
+                    sampleCtx.clearRect(0, 0, targetW, targetH);
+                    sampleCtx.drawImage(videoEl, dx, dy, dw, dh);
+                    return sampleCanvas;
+                }
+            };
+        }
+
+        function startPreviewLoop() {
+            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+            if (audioAudioEl) {
+                audioAudioEl.currentTime = 0;
+                audioAudioEl.play().catch(e => logToConsole("تنبيه الصوت: " + e.message, 'warn'));
+            }
+
+            const startTime = performance.now();
+            async function loop(now) {
+                if (state.isRendering) return;
+                const elapsed = (now - startTime) / 1000;
+                const currTime = audioAudioEl ? audioAudioEl.currentTime : (elapsed % CONFIG.duration);
+                state.currentTime = currTime;
+                await drawSceneAtTime(currTime);
+
+                if (currTime < CONFIG.duration) {
+                    state.animationFrameId = requestAnimationFrame(loop);
+                } else {
+                    statusText.textContent = "جاهز للعرض والتصدير ✓";
+                    spinner.style.display = 'none';
+                }
+            }
+            state.animationFrameId = requestAnimationFrame(loop);
+        }
+
+        const OFOQ_FRAME_FORMAT = 'image/png';
+        window.__ofoqTotalFrames = 0;
+        window.__ofoqFps = 0;
+        window.__ofoqOutputFilename = '';
+        window.__ofoqAudioWavBase64 = null;
+
+        async function __ofoqGetFrameBatch(startFrame, count) {
+            const frames = [];
+            for (let i = 0; i < count; i++) {
+                const frameIndex = startFrame + i;
+                if (frameIndex >= window.__ofoqTotalFrames) break;
+                const timestamp = frameIndex / window.__ofoqFps;
+                await drawSceneAtTime(timestamp);
+                const dataUrl = canvas.toDataURL(OFOQ_FRAME_FORMAT);
+                frames.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+            }
+            return frames;
+        }
+        window.__ofoqGetFrameBatch = __ofoqGetFrameBatch;
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
+        }
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            statusText.textContent = "جاري عرض المعاينة...";
+            spinner.style.display = 'inline-block';
+            startPreviewLoop();
+        });
+
+        document.getElementById('btn-toggle-console').addEventListener('click', () => {
+            const modal = document.getElementById('console-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        });
+
+        document.getElementById('btn-close-console').addEventListener('click', () => {
+            document.getElementById('console-modal').style.display = 'none';
+        });
+
+        document.getElementById('btn-render-start').addEventListener('click', () => {
+            logToConsole("التصدير الفعلي يتم عبر render-runner.js (Node + ffmpeg).", 'warn');
+        });
+
+        async function init() {
+            try {
+                await prepareIdentity();
+                canvas.width = CONFIG.width;
+                canvas.height = CONFIG.height;
+                window.__ofoqFps = CONFIG.fps;
+                window.__ofoqTotalFrames = Math.ceil(CONFIG.duration * CONFIG.fps);
+                window.__ofoqOutputFilename = `${OUTPUT_FILENAME}.mp4`;
+
+                if (audioBuffer) {
+                    const wavBlob = audioBufferToWavBlob(audioBuffer);
+                    audioAudioEl = new Audio(URL.createObjectURL(wavBlob));
+                    window.__ofoqAudioWavBase64 = arrayBufferToBase64(await wavBlob.arrayBuffer());
+                }
+
+                statusText.textContent = "جاهز للعرض والتصدير ✓";
+                spinner.style.display = 'none';
+                window.renderStatus = 'ready';
+                await drawSceneAtTime(0);
+            } catch (err) {
+                logToConsole("خطأ أثناء التهيئة: " + err.message, 'error');
+                statusText.textContent = "حدث خطأ أثناء التحميل";
+                window.__renderError = err.message;
+                window.renderStatus = 'error';
+            }
+        }
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
