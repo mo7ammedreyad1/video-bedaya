@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎨 المشهد الثالث: بوابة الاعتماد والدفع — Sequence 03 🎨</title>
+    <title>🎨 المشهد الثالث: بناء الحدود والوعي النفسي — Sequence 03 🎨</title>
 
     <!-- روابط الخطوط الرسمية -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,11 +102,13 @@
             fps: 30,
             width: 1920,
             height: 1080,
-            duration: 8.5
+            duration: 10.0 // مدة الجزء الثالث 10 ثوانٍ (من 20.0s إلى 30.0s في الملف الأصلي)
         };
 
-        const OUTPUT_FILENAME = "sequence_scene_3_payment_authorization";
-        const audioBuffer = null;
+        const OUTPUT_FILENAME = "chocolate_personality_scene_3";
+        let audioBuffer = null;
+
+        const CDN_AUDIO_URL = "https://cdn.jsdelivr.net/gh/mo7ammedreyad1/video-bedaya@main/sequence/Generated%20Audio%20August%2031%2C%202026%20-%205_28PM%20(1).wav";
 
         function easeInOutCubic(t) {
             return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -149,121 +151,158 @@
 
         let handImage = null;
 
-        // ==================== 🛠️ أيقونات الدفع الفيكتورية (Apple Logo, Visa, Lock) ====================
-        const PayVectors = {
-            appleLogo(ctx, x, y, size = 18, color = "#ffffff") {
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.moveTo(size * 0.08, -size * 0.42);
-                ctx.bezierCurveTo(size * 0.25, -size * 0.58, size * 0.45, -size * 0.45, size * 0.38, -size * 0.25);
-                ctx.bezierCurveTo(size * 0.2, -size * 0.12, 0, -size * 0.22, size * 0.08, -size * 0.42);
-                ctx.fill();
+        // دالة اقتطاع الشريحة الصوتية الثالثة بدقة من الملف الموحد
+        function sliceAudioBuffer(sourceBuffer, startTime, duration) {
+            const actx = getSharedAudioContext();
+            const sampleRate = sourceBuffer.sampleRate;
+            const channels = sourceBuffer.numberOfChannels;
+            const startOffset = Math.floor(startTime * sampleRate);
+            const frameCount = Math.min(Math.floor(duration * sampleRate), sourceBuffer.length - startOffset);
 
-                ctx.beginPath();
-                ctx.moveTo(0, -size * 0.18);
-                ctx.bezierCurveTo(-size * 0.22, -size * 0.3, -size * 0.48, -size * 0.15, -size * 0.48, size * 0.15);
-                ctx.bezierCurveTo(-size * 0.48, size * 0.42, -size * 0.22, size * 0.58, 0, size * 0.55);
-                ctx.bezierCurveTo(size * 0.22, size * 0.58, size * 0.48, size * 0.42, size * 0.48, size * 0.15);
-                ctx.bezierCurveTo(size * 0.36, size * 0.12, size * 0.36, -size * 0.12, size * 0.48, -size * 0.15);
-                ctx.bezierCurveTo(size * 0.32, -size * 0.3, size * 0.15, -size * 0.22, 0, -size * 0.18);
-                ctx.fill();
-                ctx.restore();
-            },
-            visa(ctx, x, y, w = 50, h = 30) {
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.beginPath();
-                ctx.roundRect(-w/2, -h/2, w, h, 4);
-                ctx.fillStyle = "#ffffff";
-                ctx.fill();
-                ctx.strokeStyle = "#e2e8f0";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                ctx.font = "900 14px 'Plus Jakarta Sans', sans-serif";
-                ctx.fillStyle = "#1a1f71";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("VISA", 0, 1);
-                ctx.restore();
-            },
-            mastercard(ctx, x, y, w = 50, h = 30) {
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.beginPath();
-                ctx.roundRect(-w/2, -h/2, w, h, 4);
-                ctx.fillStyle = "#ffffff";
-                ctx.fill();
-                ctx.strokeStyle = "#e2e8f0";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                ctx.beginPath(); ctx.arc(-6, 0, 8, 0, Math.PI*2); ctx.fillStyle = "#eb001b"; ctx.fill();
-                ctx.beginPath(); ctx.arc(6, 0, 8, 0, Math.PI*2); ctx.fillStyle = "rgba(247, 158, 0, 0.9)"; ctx.fill();
-                ctx.restore();
-            },
-            lock(ctx, x, y, size = 13, color = "#635bff") {
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.fillStyle = color;
-                ctx.fillRect(-size/2, -size/4, size, size*0.75);
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1.6;
-                ctx.beginPath(); ctx.arc(0, -size/4, size/3, Math.PI, 0); ctx.stroke();
-                ctx.restore();
+            const sliced = actx.createBuffer(channels, frameCount, sampleRate);
+            for (let c = 0; c < channels; c++) {
+                const sourceData = sourceBuffer.getChannelData(c);
+                const targetData = sliced.getChannelData(c);
+                for (let i = 0; i < frameCount; i++) {
+                    targetData[i] = sourceData[startOffset + i] || 0;
+                }
             }
-        };
+            return sliced;
+        }
 
         async function prepareIdentity() {
             await document.fonts.ready;
 
+            // تحميل الصوت واقتطاع الشريحة الثالثة من (20.0s إلى 30.0s)
+            const fullAudio = await fetchAndDecodeAudio(CDN_AUDIO_URL);
+            audioBuffer = sliceAudioBuffer(fullAudio, 20.0, CONFIG.duration);
+
+            // تحميل صورة يد الماوس SVG المعتمدة
             handImage = new Image();
             const svgBlob = new Blob([EXACT_SVG_STRING], { type: 'image/svg+xml;charset=utf-8' });
             const url = URL.createObjectURL(svgBlob);
+            await new Promise(r => { handImage.onload = r; handImage.src = url; });
+        }
 
-            await new Promise((resolve, reject) => {
-                handImage.onload = resolve;
-                handImage.onerror = reject;
-                handImage.src = url;
-            });
+        // ==================== 🛡️ رسم درع الشوكولاتة والحدود النفسية المتماسكة ====================
+        function drawResilientBoundaryShield(ctx, x, y, scale = 1, solidProgress = 1, isVerified = false) {
+            const w = 340, h = 420;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+
+            // ظل الدرع الاستوديو
+            ctx.shadowColor = isVerified ? "rgba(16, 185, 129, 0.22)" : "rgba(245, 158, 11, 0.18)";
+            ctx.shadowBlur = 40;
+            ctx.shadowOffsetY = 20;
+
+            // مسار الدرع الهندسي الأنيق
+            ctx.beginPath();
+            ctx.moveTo(0, -h / 2);
+            ctx.lineTo(w / 2, -h / 2 + 50);
+            ctx.lineTo(w / 2, h / 2 - 120);
+            ctx.quadraticCurveTo(w / 2, h / 2 - 30, 0, h / 2);
+            ctx.quadraticCurveTo(-w / 2, h / 2 - 30, -w / 2, h / 2 - 120);
+            ctx.lineTo(-w / 2, -h / 2 + 50);
+            ctx.closePath();
+
+            // تعبئة الشوكولاتة الصلبة الفاخرة المعاد تشكيلها
+            const shieldGrad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+            shieldGrad.addColorStop(0, "#4a2818");
+            shieldGrad.addColorStop(0.4, "#2d160b");
+            shieldGrad.addColorStop(0.8, "#180b05");
+            shieldGrad.addColorStop(1, "#0f0502");
+            ctx.fillStyle = shieldGrad;
+            ctx.fill();
+
+            // الحد الذهبي الزجاجي العاكس (Gold & Specular Border)
+            ctx.shadowColor = "transparent";
+            const borderGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+            borderGrad.addColorStop(0, "#ffffff");
+            borderGrad.addColorStop(0.3, isVerified ? "#10b981" : "#f59e0b");
+            borderGrad.addColorStop(0.7, "#fef08a");
+            borderGrad.addColorStop(1, "rgba(255, 255, 255, 0.5)");
+            ctx.strokeStyle = borderGrad;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // لمعة الفولاذ المصقولة على سطح الشوكولاتة
+            ctx.beginPath();
+            ctx.moveTo(-w / 3, -h / 2 + 80);
+            ctx.lineTo(-w / 4, h / 2 - 100);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            // قلب الدرع المركزي
+            ctx.beginPath();
+            ctx.arc(0, -10, 52, 0, Math.PI * 2);
+            ctx.fillStyle = isVerified ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)";
+            ctx.fill();
+            ctx.strokeStyle = isVerified ? "#10b981" : "#f59e0b";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // أيقونة القفل والحدود في قلب الدرع
+            if (isVerified) {
+                ctx.strokeStyle = "#10b981";
+                ctx.lineWidth = 5;
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.beginPath();
+                ctx.moveTo(-18, -10);
+                ctx.lineTo(-4, 6);
+                ctx.lineTo(20, -18);
+                ctx.stroke();
+            } else {
+                ctx.font = "900 24px 'Plus Jakarta Sans', sans-serif";
+                ctx.fillStyle = "#f59e0b";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("CORE", 0, -10);
+            }
+
+            // شارة الحماية أسفل الدرع
+            ctx.beginPath();
+            ctx.roundRect(-110, h / 2 - 60, 220, 32, 16);
+            ctx.fillStyle = isVerified ? "#059669" : "#d97706";
+            ctx.fill();
+
+            ctx.font = "800 13px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(isVerified ? "حدود نفسية متماسكة ✓" : "تأسيس الحماية الذاتية", 0, h / 2 - 44);
+
+            ctx.restore();
         }
 
         async function drawSceneAtTime(time) {
             ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
 
-            // ==================== 1. استقبال الزخم الحركي والاتصال مع المشهد الرابع ====================
-            // من 0.0s -> 1.2s: شعاع الطاقة يدخل من أقصى اليسار ويستقر في استمارة الدفع (استلام مباشر من المشهد 2)
-            // من 1.2s -> 6.8s: إدخال البيانات ونقر يد الماوس SVG والمعالجة
-            // من 6.8s -> 8.5s: انفجار موجة التأكيد الخضراء الزمردية لتسليم المشهد الرابع
+            // ==================== 1. استقبال الاندفاع الكهرماني من المشهد الثاني والارتداد البانورامي ====================
+            // من 0.0s -> 1.4s: استقبال تيار الكاكاو من اليسار وتلاشي الوميض الكهرماني المستلم من المشهد 2
+            // من 1.4s -> 6.5s: تشكل الدرع الصلب واستقرار الحكمة ونقر الماوس SVG لتفعيل الحدود
+            // من 6.5s -> 10.0s: الارتداد البانورامي النهائي (Master Grand Pullback) واستقرار المشهد كخاتمة كاملة
             let initialEntryFlash = 0;
-            let exitGreenFlash = 0;
-
-            if (time < 1.2) {
-                initialEntryFlash = 1 - (time / 1.2);
-            } else if (time >= 6.8) {
-                const outP = (time - 6.8) / 1.7;
-                exitGreenFlash = Math.pow(outP, 2.5); // شحنة خضراء تشع وتملأ الشاشة عند 8.5s
-            }
-
-            // حركة الكاميرا المتصلة
             let camX = CONFIG.width / 2;
             let camY = CONFIG.height / 2;
             let camZoom = 1.0;
 
-            if (time < 2.5) {
-                const p = easeInOutCubic(time / 2.5);
-                camZoom = 1.08 - p * 0.04;
-                camX = CONFIG.width / 2 - 30;
-                camY = 510;
-            } else if (time < 6.8) {
-                camZoom = 1.04;
-                camX = CONFIG.width / 2;
-                camY = 540;
+            if (time < 1.4) {
+                initialEntryFlash = 1 - (time / 1.4);
+                camZoom = 1.12 - (time / 1.4) * 0.12;
+            } else if (time < 6.5) {
+                camZoom = 1.0;
+                camX = CONFIG.width / 2 + Math.sin(time * 0.8) * 15;
+                camY = CONFIG.height / 2 + Math.cos(time * 0.8) * 10;
             } else {
-                const p = easeInOutCubic((time - 6.8) / 1.7);
-                camZoom = 1.04 + p * 0.12; // تمدد الكاميرا مع الانفجار الأخضر
+                // الارتداد البانورامي الشامل النهائي
+                const pullP = (time - 6.5) / 3.5;
+                const easePull = easeInOutCubic(pullP);
+                camZoom = 1.0 - easePull * 0.14; // 0.86x تراجع شامل وثابت
+                camX = CONFIG.width / 2;
+                camY = CONFIG.height / 2;
             }
 
             ctx.save();
@@ -271,251 +310,194 @@
             ctx.scale(camZoom, camZoom);
             ctx.translate(-camX, -camY);
 
-            // ==================== 2. بيئة الاستوديو وتقسيم ملء الشاشة ====================
-            const leftWidth = 780; // ملخص الفاتورة
-            const rightWidth = CONFIG.width - leftWidth; // استمارة الدفع
+            // ==================== 2. بيئة الاستوديو الدافئة والشبكة المعمارية ====================
+            const bgGrad = ctx.createRadialGradient(
+                CONFIG.width / 2, CONFIG.height / 2, 120,
+                CONFIG.width / 2, CONFIG.height / 2, CONFIG.width * 0.9
+            );
+            bgGrad.addColorStop(0, "#ffffff");
+            bgGrad.addColorStop(0.65, "#faf7f4");
+            bgGrad.addColorStop(1, "#f2eae2");
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(-400, -400, CONFIG.width + 800, CONFIG.height + 800);
 
-            // ------------------ القسم الأيمن (ملخص الفاتورة والاشتراك) ------------------
-            const summaryGrad = ctx.createLinearGradient(0, 0, leftWidth, CONFIG.height);
-            summaryGrad.addColorStop(0, "#f8fbfd");
-            summaryGrad.addColorStop(0.5, "#f1f5f9");
-            summaryGrad.addColorStop(1, "#e6edf5");
-            ctx.fillStyle = summaryGrad;
-            ctx.fillRect(CONFIG.width - leftWidth, 0, leftWidth, CONFIG.height);
-
-            ctx.strokeStyle = "#e2e8f0";
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(CONFIG.width - leftWidth, 0);
-            ctx.lineTo(CONFIG.width - leftWidth, CONFIG.height);
-            ctx.stroke();
-
-            const sumRightMargin = CONFIG.width - 80;
-
-            ctx.font = "700 14px 'IBM Plex Sans Arabic', sans-serif";
-            ctx.fillStyle = "#64748b";
-            ctx.textAlign = "right";
-            ctx.fillText("PHASE 03 · GLOBAL AUTHORIZATION", sumRightMargin, 80);
-
-            ctx.font = "800 14px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = "#635bff";
-            ctx.fillText("PRO STUDIO WORKSPACE", sumRightMargin, 160);
-
-            ctx.font = "900 36px 'IBM Plex Sans Arabic', sans-serif";
-            ctx.fillStyle = "#0a2540";
-            ctx.fillText("الاشتراك السنوي الشامل", sumRightMargin, 215);
-
-            ctx.font = "900 68px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = "#0a2540";
-            ctx.fillText("$149.00", sumRightMargin, 305);
-
-            ctx.font = "600 16px 'IBM Plex Sans Arabic', sans-serif";
-            ctx.fillStyle = "#64748b";
-            ctx.fillText("تفعيل فوري للمنظومة والذكاء الاصطناعي", sumRightMargin, 350);
-
-            const tableY = 410;
-            ctx.strokeStyle = "#cbd5e1";
+            // شبكة دقيقة ممتدة
+            ctx.strokeStyle = "rgba(60, 30, 15, 0.035)";
             ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(sumRightMargin, tableY); ctx.lineTo(CONFIG.width - leftWidth + 80, tableY); ctx.stroke();
-
-            ctx.font = "700 16px 'IBM Plex Sans Arabic'";
-            ctx.fillStyle = "#334155";
-            ctx.fillText("باقة الذكاء الاصطناعي Pro (سنوي)", sumRightMargin, tableY + 50);
-            ctx.textAlign = "left";
-            ctx.fillText("$149.00", CONFIG.width - leftWidth + 80, tableY + 50);
-
-            ctx.textAlign = "right";
-            ctx.fillText("الضريبة المضافة (0%)", sumRightMargin, tableY + 100);
-            ctx.textAlign = "left";
-            ctx.fillText("$0.00", CONFIG.width - leftWidth + 80, tableY + 100);
-
-            ctx.strokeStyle = "#cbd5e1";
-            ctx.beginPath(); ctx.moveTo(sumRightMargin, tableY + 135); ctx.lineTo(CONFIG.width - leftWidth + 80, tableY + 135); ctx.stroke();
-
-            ctx.font = "900 20px 'IBM Plex Sans Arabic'";
-            ctx.fillStyle = "#0a2540";
-            ctx.textAlign = "right";
-            ctx.fillText("المجموع الإجمالي للدفع", sumRightMargin, tableY + 180);
-            ctx.textAlign = "left";
-            ctx.fillText("$149.00", CONFIG.width - leftWidth + 80, tableY + 180);
-
-            PayVectors.lock(ctx, sumRightMargin - 10, CONFIG.height - 75, 15, "#635bff");
-            ctx.font = "700 13px 'Plus Jakarta Sans', 'IBM Plex Sans Arabic', sans-serif";
-            ctx.fillStyle = "#635bff";
-            ctx.textAlign = "right";
-            ctx.fillText("Powered by Stripe  ·  تشفير بنكي 256-Bit SSL آمن بالكامل", sumRightMargin - 35, CONFIG.height - 70);
-
-            // ------------------ القسم الأيسر (استمارة الدفع في ملء الشاشة) ------------------
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, rightWidth, CONFIG.height);
-
-            const formW = 720;
-            const formStartX = (rightWidth - formW) / 2;
-
-            // 1. زر الدفع السريع Apple Pay
-            const appleBtnY = 120;
-            ctx.beginPath();
-            ctx.roundRect(formStartX, appleBtnY, formW, 62, 10);
-            ctx.fillStyle = "#000000";
-            ctx.fill();
-
-            PayVectors.appleLogo(ctx, formStartX + formW / 2 - 32, appleBtnY + 31, 24, "#ffffff");
-            ctx.font = "800 24px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = "#ffffff";
-            ctx.textAlign = "left";
-            ctx.textBaseline = "middle";
-            ctx.fillText("Pay", formStartX + formW / 2 - 16, appleBtnY + 31);
-
-            // فاصل "أو الدفع بالبطاقة"
-            const dividerY = appleBtnY + 105;
-            ctx.strokeStyle = "#e2e8f0";
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(formStartX, dividerY); ctx.lineTo(formStartX + formW * 0.35, dividerY);
-            ctx.moveTo(formStartX + formW * 0.65, dividerY); ctx.lineTo(formStartX + formW, dividerY);
-            ctx.stroke();
-
-            ctx.font = "600 13px 'IBM Plex Sans Arabic', sans-serif";
-            ctx.fillStyle = "#8898aa";
-            ctx.textAlign = "center";
-            ctx.fillText("أو الدفع بواسطة البطاقة الائتمانية", formStartX + formW / 2, dividerY);
-
-            // 2. حقل البريد الإلكتروني
-            const emailFieldY = dividerY + 45;
-            ctx.font = "700 14px 'IBM Plex Sans Arabic'";
-            ctx.fillStyle = "#334155";
-            ctx.textAlign = "right";
-            ctx.fillText("البريد الإلكتروني للعميل", formStartX + formW, emailFieldY);
-
-            ctx.beginPath();
-            ctx.roundRect(formStartX, emailFieldY + 12, formW, 54, 8);
-            ctx.fillStyle = "#f8fafc";
-            ctx.fill();
-            ctx.strokeStyle = "#cbd5e1";
-            ctx.lineWidth = 1.4;
-            ctx.stroke();
-
-            ctx.font = "600 16px 'Plus Jakarta Sans'";
-            ctx.fillStyle = "#0a2540";
-            ctx.fillText("client@studio.pro", formStartX + formW - 20, emailFieldY + 40);
-
-            // 3. حقل بيانات البطاقة
-            const cardBlockY = emailFieldY + 105;
-            ctx.font = "700 14px 'IBM Plex Sans Arabic'";
-            ctx.fillStyle = "#334155";
-            ctx.fillText("بيانات البطاقة الائتمانية", formStartX + formW, cardBlockY);
-
-            ctx.beginPath();
-            ctx.roundRect(formStartX, cardBlockY + 12, formW, 108, 8);
-            ctx.fillStyle = "#ffffff";
-            ctx.fill();
-            ctx.strokeStyle = time >= 1.5 ? "#635bff" : "#cbd5e1";
-            ctx.lineWidth = time >= 1.5 ? 2.0 : 1.4;
-            ctx.stroke();
-
-            ctx.strokeStyle = "#e2e8f0";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(formStartX, cardBlockY + 12 + 54); ctx.lineTo(formStartX + formW, cardBlockY + 12 + 54);
-            ctx.moveTo(formStartX + formW / 2, cardBlockY + 12 + 54); ctx.lineTo(formStartX + formW / 2, cardBlockY + 12 + 108);
-            ctx.stroke();
-
-            PayVectors.visa(ctx, formStartX + 45, cardBlockY + 39, 52, 30);
-            PayVectors.mastercard(ctx, formStartX + 105, cardBlockY + 39, 52, 30);
-
-            let cardNum = "4242 •••• •••• 4242";
-            if (time < 2.2) cardNum = "•••• •••• •••• ••••";
-
-            ctx.font = "700 18px 'Plus Jakarta Sans'";
-            ctx.fillStyle = "#0a2540";
-            ctx.textAlign = "right";
-            ctx.fillText(cardNum, formStartX + formW - 24, cardBlockY + 40);
-
-            ctx.fillText(time >= 2.6 ? "12 / 28" : "MM / YY", formStartX + formW - 24, cardBlockY + 94);
-            ctx.fillText(time >= 3.0 ? "888" : "CVC", formStartX + formW / 2 - 24, cardBlockY + 94);
-
-            // 4. زر إتمام الدفع النهائي
-            const payBtnY = cardBlockY + 160;
-            const isPaying = time >= 4.2 && time < 5.8;
-            const isPaid = time >= 5.8;
-
-            let payScale = 1.0;
-            if (time >= 4.0 && time < 4.8) {
-                const p = (time - 4.0) / 0.8;
-                payScale = p < 0.35 ? 0.95 : 1.0 + Math.sin(p * Math.PI) * 0.03;
+            const gridSize = 50;
+            for (let x = -400; x < CONFIG.width + 400; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, -400); ctx.lineTo(x, CONFIG.height + 400); ctx.stroke();
+            }
+            for (let y = -400; y < CONFIG.height + 400; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(-400, y); ctx.lineTo(CONFIG.width + 400, y); ctx.stroke();
             }
 
-            ctx.save();
-            ctx.translate(formStartX + formW / 2, payBtnY + 31);
-            ctx.scale(payScale, payScale);
-
-            ctx.beginPath();
-            ctx.roundRect(-formW / 2, -31, formW, 62, 10);
-            ctx.fillStyle = isPaid ? "#059669" : "#635bff";
-            ctx.fill();
-
-            ctx.shadowColor = isPaid ? "rgba(5, 150, 105, 0.4)" : "rgba(99, 91, 255, 0.4)";
-            ctx.shadowBlur = 24;
-            ctx.shadowOffsetY = 10;
-
-            if (isPaying) {
-                ctx.save();
-                ctx.rotate(time * 12);
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 3.5;
-                ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 1.5); ctx.stroke();
-                ctx.restore();
-            } else {
-                ctx.font = "800 20px 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif";
-                ctx.fillStyle = "#ffffff";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                const btnLabel = isPaid ? "تم تأكيد الاعتماد بنجاح  ✓" : "دفع وتفعيل المنظومة $149.00";
-                ctx.fillText(btnLabel, 0, 0);
-            }
-            ctx.restore();
-
-            // ==================== 3. استقبال شعاع الطاقة القادم من المشهد 2 ====================
-            if (time < 1.0) {
-                const beamInP = time / 1.0;
-                const headX = -100 + beamInP * (formStartX + formW);
+            // ==================== 3. استقبال تيار السائل المتدفق من جهة اليسار ====================
+            if (time < 1.6) {
+                const flowP = clamp01(time / 1.6);
+                const streamHeadX = -100 + flowP * 740;
 
                 ctx.beginPath();
-                ctx.moveTo(-200, cardBlockY + 40);
-                ctx.lineTo(headX, cardBlockY + 40);
-                ctx.strokeStyle = "#38bdf8";
-                ctx.lineWidth = 12 * (1 - beamInP * 0.5);
+                ctx.moveTo(-200, 540);
+                ctx.lineTo(streamHeadX, 540);
+                ctx.strokeStyle = "#ea580c";
+                ctx.lineWidth = 16 * (1 - flowP * 0.4);
                 ctx.lineCap = "round";
-                ctx.shadowColor = "#0284c7";
+                ctx.shadowColor = "#f59e0b";
                 ctx.shadowBlur = 25;
                 ctx.stroke();
                 ctx.shadowColor = "transparent";
             }
 
-            // ==================== 4. حركة مؤشر يد الماوس SVG المعتمدة ====================
-            const targetPayBtn = { x: formStartX + formW / 2, y: payBtnY + 31 };
+            // ==================== 4. رسم درع الحكمة وتصلب الشوكولاتة ====================
+            const shieldX = 1240;
+            const shieldY = 540;
+            const isShieldVerified = time >= 5.8;
 
-            let handX = targetPayBtn.x + 300;
-            let handY = targetPayBtn.y + 240;
-            let handDip = 0;
+            const shieldEntrance = clamp01((time - 0.4) / 1.2);
+            const shieldScale = 0.88 + 0.12 * easeOutBack(shieldEntrance);
+            const shieldHover = Math.sin(time * 2.0) * 6;
 
-            if (time < 2.0) {
-                handX = targetPayBtn.x + 300;
-                handY = targetPayBtn.y + 240;
-            } else if (time < 4.0) {
-                const p = easeInOutCubic((time - 2.0) / 2.0);
-                handX = targetPayBtn.x + 300 - p * 300;
-                handY = targetPayBtn.y + 240 - p * 240 - Math.sin(p * Math.PI) * 40;
-            } else if (time < 4.6) {
-                handX = targetPayBtn.x;
-                handY = targetPayBtn.y;
-                handDip = Math.sin(((time - 4.0) / 0.6) * Math.PI) * 10;
-            } else {
-                handX = targetPayBtn.x + Math.sin(time * 2) * 5;
-                handY = targetPayBtn.y + 15 + Math.cos(time * 2) * 4;
+            drawResilientBoundaryShield(ctx, shieldX, shieldY + shieldHover, shieldScale, shieldEntrance, isShieldVerified);
+
+            // ==================== 5. كروت الحكمة والوعي النفسي جهة اليسار ====================
+            // كارت 1: الحفاظ على الحلاوة واللطف
+            if (time >= 0.8) {
+                const c1P = clamp01((time - 0.8) / 0.8);
+                ctx.save();
+                ctx.translate(520, 280);
+                const s1 = 0.88 + 0.12 * easeOutBack(c1P);
+                ctx.scale(s1, s1);
+                ctx.globalAlpha = c1P;
+
+                ctx.beginPath();
+                ctx.roundRect(-260, -60, 520, 120, 20);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+                ctx.shadowColor = "rgba(10, 15, 29, 0.08)";
+                ctx.shadowBlur = 25;
+                ctx.fill();
+
+                ctx.shadowColor = "transparent";
+                ctx.strokeStyle = "#f59e0b";
+                ctx.lineWidth = 1.8;
+                ctx.stroke();
+
+                ctx.font = "800 20px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#1c0d06";
+                ctx.textAlign = "right";
+                ctx.fillText("الحل مش إنك تفقد حلاوتك 🍫", 230, -15);
+
+                ctx.font = "500 14px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("اللطف قيمة راقية، والمشكلة ليست في طيبة القلب", 230, 20);
+                ctx.restore();
             }
 
-            if (handImage && time >= 1.5) {
+            // كارت 2: بناء الحدود الصلبة
+            if (time >= 3.0) {
+                const c2P = clamp01((time - 3.0) / 0.8);
+                ctx.save();
+                ctx.translate(520, 440);
+                const s2 = 0.88 + 0.12 * easeOutBack(c2P);
+                ctx.scale(s2, s2);
+                ctx.globalAlpha = c2P;
+
+                ctx.beginPath();
+                ctx.roundRect(-260, -60, 520, 120, 20);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+                ctx.shadowColor = "rgba(10, 15, 29, 0.08)";
+                ctx.shadowBlur = 25;
+                ctx.fill();
+
+                ctx.shadowColor = "transparent";
+                ctx.strokeStyle = "#0284c7";
+                ctx.lineWidth = 1.8;
+                ctx.stroke();
+
+                ctx.font = "800 20px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#0284c7";
+                ctx.textAlign = "right";
+                ctx.fillText("بل إنك تبني حدود صلبة تحميك 🛡️", 230, -15);
+
+                ctx.font = "500 14px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#64748b";
+                ctx.fillText("تعلم مهارة قول (لا) بوضوح واحترام للذات", 230, 20);
+                ctx.restore();
+            }
+
+            // كارت 3: زر تأكيد الوعي والاستقلال النفسي
+            const btnW = 520, btnH = 68;
+            const btnX = 520, btnY = 600;
+
+            if (time >= 4.2) {
+                const btnP = clamp01((time - 4.2) / 0.7);
+                let btnScale = 0.88 + 0.12 * easeOutBack(btnP);
+                if (time >= 5.5 && time < 6.2) {
+                    const pressP = (time - 5.5) / 0.7;
+                    btnScale = pressP < 0.35 ? 0.94 : 1.0 + Math.sin(pressP * Math.PI) * 0.03;
+                }
+
+                ctx.save();
+                ctx.translate(btnX, btnY);
+                ctx.scale(btnScale, btnScale);
+                ctx.globalAlpha = btnP;
+
+                const btnGrad = ctx.createLinearGradient(-btnW / 2, 0, btnW / 2, 0);
+                if (isShieldVerified) {
+                    btnGrad.addColorStop(0, "#059669");
+                    btnGrad.addColorStop(1, "#10b981");
+                } else {
+                    btnGrad.addColorStop(0, "#d97706");
+                    btnGrad.addColorStop(1, "#f59e0b");
+                }
+
+                ctx.shadowColor = isShieldVerified ? "rgba(16, 185, 129, 0.4)" : "rgba(245, 158, 11, 0.35)";
+                ctx.shadowBlur = 24;
+                ctx.shadowOffsetY = 8;
+
+                ctx.beginPath();
+                ctx.roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 34);
+                ctx.fillStyle = btnGrad;
+                ctx.fill();
+
+                ctx.shadowColor = "transparent";
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+                ctx.lineWidth = 1.6;
+                ctx.stroke();
+
+                ctx.font = "900 19px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                const bText = isShieldVerified ? "تم تفعيل الحدود والوعي النفسي ✓" : "تفعيل الحدود وحماية الشخصية  →";
+                ctx.fillText(bText, 0, 0);
+
+                ctx.restore();
+            }
+
+            // ==================== 6. حركة يد الماوس SVG المعتمدة ====================
+            const targetBtnPos = { x: btnX, y: btnY };
+            let handX = targetBtnPos.x + 280;
+            let handY = targetBtnPos.y + 200;
+            let handDip = 0;
+
+            if (time < 4.0) {
+                handX = targetBtnPos.x + 280;
+                handY = targetBtnPos.y + 200;
+            } else if (time < 5.4) {
+                const p = easeInOutCubic((time - 4.0) / 1.4);
+                handX = targetBtnPos.x + 280 - p * 280;
+                handY = targetBtnPos.y + 200 - p * 200 - Math.sin(p * Math.PI) * 40;
+            } else if (time < 6.0) {
+                handX = targetBtnPos.x;
+                handY = targetBtnPos.y;
+                handDip = Math.sin(((time - 5.4) / 0.6) * Math.PI) * 10;
+            } else {
+                handX = targetBtnPos.x + Math.sin(time * 2) * 5;
+                handY = targetBtnPos.y + 15 + Math.cos(time * 2) * 4;
+            }
+
+            if (handImage && time >= 3.8) {
                 ctx.save();
                 const drawSize = 115;
                 const hotspotOffsetX = (12.5 / 32) * drawSize;
@@ -531,28 +513,50 @@
                 ctx.restore();
             }
 
-            // ==================== 5. انفجار موجة التأكيد الخضراء لتسليم المشهد 4 ====================
-            if (time >= 6.8) {
-                const blastP = (time - 6.8) / 1.7;
-                const blastR = blastP * CONFIG.width * 1.2;
-
+            // موجة الصدمة عند نقر الزر وتفعيل الدرع
+            if (time >= 5.8 && time < 7.2) {
+                const rip = (time - 5.8) / 1.4;
                 ctx.beginPath();
-                ctx.arc(formStartX + formW / 2, payBtnY + 31, blastR, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(16, 185, 129, ${blastP * 0.95})`;
+                ctx.arc(shieldX, shieldY, 80 + rip * 220, 0, Math.PI * 2);
+                ctx.strokeStyle = "#10b981";
+                ctx.lineWidth = 3;
+                ctx.globalAlpha = 1 - rip;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
+
+            // ==================== 7. الشارة الختامية الذهبية ====================
+            // "خليك واعي... ومتخليش رضا الناس يدوّب شخصيتك!"
+            if (time >= 6.5) {
+                const outroP = clamp01((time - 6.5) / 0.8);
+                ctx.save();
+                ctx.translate(CONFIG.width / 2, 100);
+                const oScale = 0.9 + 0.1 * easeOutBack(outroP);
+                ctx.scale(oScale, oScale);
+                ctx.globalAlpha = outroP;
+
+                const outW = 620, outH = 54;
+                ctx.beginPath();
+                ctx.roundRect(-outW / 2, -outH / 2, outW, outH, 27);
+                ctx.fillStyle = "#2d160b";
                 ctx.fill();
+                ctx.strokeStyle = "#10b981";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.font = "900 20px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#fef08a";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("خَلِّيكْ وَاعِي.. وَمَتْخَلِّيشْ رِضَا النَّاسْ يْدَوِّبْ شَخْصِيَّتَكْ ✨", 0, 0);
+                ctx.restore();
             }
 
             ctx.restore(); // استعادة الكاميرا
 
-            // وميض الدخول الأزرق المستلم من المشهد 2
+            // وميض الدخول الكهرماني المستلم من المشهد 2 في الفريم 0.0
             if (initialEntryFlash > 0.01) {
-                ctx.fillStyle = `rgba(2, 132, 199, ${initialEntryFlash * 0.85})`;
-                ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
-            }
-
-            // وميض الخروج الأخضر الزمردي لتسليم المشهد 4 في الثانية 8.5
-            if (exitGreenFlash > 0.01) {
-                ctx.fillStyle = `rgba(16, 185, 129, ${clamp01(exitGreenFlash)})`;
+                ctx.fillStyle = `rgba(234, 88, 12, ${initialEntryFlash * 0.9})`;
                 ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
             }
         }
@@ -855,4 +859,4 @@
         window.addEventListener('load', init);
     </script>
 </body>
-</html>
+	</html>
