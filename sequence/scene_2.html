@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎨 المشهد الثاني: نواة المعالجة والذكاء الاصطناعي — Sequence 02 🎨</title>
+    <title>🎨 المشهد الثاني: الذوبان تحت الضغط النفسي — Sequence 02 🎨</title>
 
     <!-- روابط الخطوط الرسمية -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,11 +102,13 @@
             fps: 30,
             width: 1920,
             height: 1080,
-            duration: 8.5
+            duration: 10.0 // مدة الجزء الثاني 10 ثوانٍ (من 10.0s إلى 20.0s في الملف الأصلي)
         };
 
-        const OUTPUT_FILENAME = "sequence_scene_2_ai_neural_core";
-        const audioBuffer = null;
+        const OUTPUT_FILENAME = "chocolate_personality_scene_2";
+        let audioBuffer = null;
+
+        const CDN_AUDIO_URL = "https://cdn.jsdelivr.net/gh/mo7ammedreyad1/video-bedaya@main/sequence/Generated%20Audio%20August%2031%2C%202026%20-%205_28PM%20(1).wav";
 
         function easeInOutCubic(t) {
             return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -117,173 +119,164 @@
             return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
         }
 
-        async function prepareIdentity() {
-            await document.fonts.ready;
+        // دالة اقتطاع الشريحة الصوتية بدقة من الملف الأصلي
+        function sliceAudioBuffer(sourceBuffer, startTime, duration) {
+            const actx = getSharedAudioContext();
+            const sampleRate = sourceBuffer.sampleRate;
+            const channels = sourceBuffer.numberOfChannels;
+            const startOffset = Math.floor(startTime * sampleRate);
+            const frameCount = Math.min(Math.floor(duration * sampleRate), sourceBuffer.length - startOffset);
+
+            const sliced = actx.createBuffer(channels, frameCount, sampleRate);
+            for (let c = 0; c < channels; c++) {
+                const sourceData = sourceBuffer.getChannelData(c);
+                const targetData = sliced.getChannelData(c);
+                for (let i = 0; i < frameCount; i++) {
+                    targetData[i] = sourceData[startOffset + i] || 0;
+                }
+            }
+            return sliced;
         }
 
-        // بطاقات المعالجة العصبية الفرعية
-        const NEURAL_NODES = [
-            {
-                title: "معالجة النماذج التوليدية",
-                tag: "LLM & TENSOR PIPELINE",
-                stat: "1.2 Trillion Params/s",
-                color: "#0284c7",
-                x: 420, y: 310
-            },
-            {
-                title: "التحليل التنبؤي المتسارع",
-                tag: "PREDICTIVE REAL-TIME",
-                stat: "0.04ms Latency",
-                color: "#7c3aed",
-                x: 420, y: 770
-            },
-            {
-                title: "توليد الرؤى والقرارات",
-                tag: "AUTONOMOUS REASONING",
-                stat: "99.98% Precision",
-                color: "#059669",
-                x: 1500, y: 310
-            }
-        ];
+        async function prepareIdentity() {
+            await document.fonts.ready;
 
-        // رسم كارت فرعي زجاجي لنواة الحوسبة
-        function drawNeuralGlassCard(ctx, node, progress) {
+            // جلب الصوت الكامل واقتطاع الشريحة الثانية من (10.0s إلى 20.0s)
+            const fullAudio = await fetchAndDecodeAudio(CDN_AUDIO_URL);
+            audioBuffer = sliceAudioBuffer(fullAudio, 10.0, CONFIG.duration);
+        }
+
+        // ==================== 🌊 رسم موجات وتيارات الشوكولاتة الذائبة (Fluid Dynamics) ====================
+        function drawMeltingChocolateFlow(ctx, time, meltProgress = 1) {
+            const centerY = 580;
+            const flowWidth = 1920;
+
+            // طبقات السائل الشوكولاتي المنساب بدرجات لمعان وعمق متعددة
+            const fluidLayers = [
+                { speed: 2.2, freq: 0.003, amp: 45, color: "#1a0b05", yOffset: 120 },
+                { speed: 3.5, freq: 0.005, amp: 65, color: "#2d160b", yOffset: 70 },
+                { speed: 4.8, freq: 0.007, amp: 85, color: "#422212", yOffset: 20 },
+                { speed: 6.0, freq: 0.009, amp: 55, color: "#5a311c", yOffset: -30 }
+            ];
+
+            fluidLayers.forEach((layer, idx) => {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(-100, CONFIG.height + 100);
+
+                const currentY = centerY + layer.yOffset * (1 - meltProgress * 0.4);
+                for (let x = -100; x <= CONFIG.width + 100; x += 15) {
+                    const wave = Math.sin(x * layer.freq + time * layer.speed) * layer.amp * meltProgress;
+                    ctx.lineTo(x, currentY + wave);
+                }
+
+                ctx.lineTo(CONFIG.width + 100, CONFIG.height + 100);
+                ctx.closePath();
+
+                // تدرج لوني يعطي لمعان الشوكولاتة الذائبة الحقيقية
+                const fGrad = ctx.createLinearGradient(0, currentY - 50, 0, CONFIG.height);
+                fGrad.addColorStop(0, layer.color);
+                fGrad.addColorStop(0.3, "#341a0e");
+                fGrad.addColorStop(1, "#150804");
+                ctx.fillStyle = fGrad;
+                ctx.fill();
+
+                // لمعة الضوء العاكسة على حافة السائل
+                if (idx === 2 || idx === 3) {
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            });
+
+            // قطرات متساقطة وجزيئات شوكولاتة ذائبة
+            for (let d = 0; d < 6; d++) {
+                const dropProgress = (time * 1.5 + d * 0.3) % 1.0;
+                const dx = 420 + d * 180 + Math.sin(time * 2 + d) * 20;
+                const dy = 260 + dropProgress * 420;
+                const dSize = 6 + Math.sin(d) * 3;
+
+                ctx.beginPath();
+                ctx.arc(dx, dy, dSize, 0, Math.PI * 2);
+                ctx.fillStyle = "#3d2012";
+                ctx.fill();
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // ==================== 📊 رسم عداد الضغط النفسي الزجاجي ====================
+        function drawStressMeterCard(ctx, x, y, titleAr, subtitleAr, percent, accentColor, progress) {
             if (progress <= 0) return;
 
-            const w = 390, h = 175;
+            const w = 420, h = 160;
             ctx.save();
-            ctx.translate(node.x, node.y);
-            const scale = 0.85 + 0.15 * easeOutBack(progress);
+            ctx.translate(x, y);
+            const scale = 0.86 + 0.14 * easeOutBack(progress);
             ctx.scale(scale, scale);
             ctx.globalAlpha = clamp01(progress);
 
-            // ظل الكارت
-            ctx.shadowColor = "rgba(10, 15, 29, 0.08)";
-            ctx.shadowBlur = 30;
-            ctx.shadowOffsetY = 14;
+            // ظل الاستوديو
+            ctx.shadowColor = "rgba(10, 15, 29, 0.09)";
+            ctx.shadowBlur = 32;
+            ctx.shadowOffsetY = 15;
 
             // جسم الكارت الزجاجي
             ctx.beginPath();
             ctx.roundRect(-w / 2, -h / 2, w, h, 24);
-            ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
             ctx.fill();
 
-            // حد عاكس
+            // الحد العاكس
             ctx.shadowColor = "transparent";
             const borderGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
             borderGrad.addColorStop(0, "#ffffff");
-            borderGrad.addColorStop(0.35, node.color);
-            borderGrad.addColorStop(0.75, "rgba(226, 232, 240, 0.85)");
+            borderGrad.addColorStop(0.35, accentColor);
+            borderGrad.addColorStop(0.8, "rgba(226, 232, 240, 0.85)");
             borderGrad.addColorStop(1, "rgba(255, 255, 255, 0.4)");
             ctx.strokeStyle = borderGrad;
             ctx.lineWidth = 1.8;
             ctx.stroke();
 
-            // بادج التقنية
-            const badgeW = 160, badgeH = 26;
+            // شارة النسبة المئوية
+            const badgeW = 100, badgeH = 28;
             ctx.beginPath();
-            ctx.roundRect(w / 2 - badgeW - 20, -h / 2 + 18, badgeW, badgeH, 13);
-            ctx.fillStyle = "rgba(15, 23, 42, 0.04)";
+            ctx.roundRect(-w / 2 + 20, -h / 2 + 18, badgeW, badgeH, 14);
+            ctx.fillStyle = accentColor;
             ctx.fill();
-            ctx.strokeStyle = node.color;
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
 
-            ctx.font = "800 10px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = node.color;
+            ctx.font = "900 13px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = "#ffffff";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(node.tag, w / 2 - badgeW / 2 - 20, -h / 2 + 31);
+            ctx.fillText(`${Math.round(percent)}%`, -w / 2 + 20 + badgeW / 2, -h / 2 + 32);
 
-            // العنوان العربي
+            // العنوان والوصف
             ctx.font = "800 20px 'IBM Plex Sans Arabic', sans-serif";
             ctx.fillStyle = "#0f172a";
             ctx.textAlign = "right";
-            ctx.textBaseline = "top";
-            ctx.fillText(node.title, w / 2 - 22, -h / 2 + 56);
+            ctx.fillText(titleAr, w / 2 - 22, -h / 2 + 32);
 
-            // الرقم الإحصائي الضخم
-            ctx.font = "900 28px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = node.color;
-            ctx.fillText(node.stat, w / 2 - 22, -h / 2 + 96);
+            ctx.font = "500 13px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#64748b";
+            ctx.fillText(subtitleAr, w / 2 - 22, -h / 2 + 65);
 
-            ctx.restore();
-        }
-
-        // رسم قلب الذكاء الاصطناعي التفاعلي المركزي (Central 3D AI Neural Core)
-        function drawCentralAICore(ctx, cx, cy, time) {
-            ctx.save();
-            ctx.translate(cx, cy);
-
-            const hoverY = Math.sin(time * 2.5) * 8;
-            ctx.translate(0, hoverY);
-
-            // 1. حلقات التنسور المدارية ثلاثية الأبعاد (Orbital Tensor Rings)
-            for (let r = 0; r < 4; r++) {
-                const rot = time * (0.9 + r * 0.3) + (r * Math.PI) / 4;
-                ctx.save();
-                ctx.rotate(rot);
-                ctx.scale(1, 0.38);
-
-                ctx.beginPath();
-                ctx.arc(0, 0, 160 + r * 28, 0, Math.PI * 2);
-                ctx.strokeStyle = r === 1 ? "#0284c7" : (r === 2 ? "#7c3aed" : "rgba(203, 213, 225, 0.7)");
-                ctx.lineWidth = r <= 2 ? 2.5 : 1.4;
-                ctx.stroke();
-
-                // بذور بيانات مضيئة تدور على الحلقات
-                const px = Math.cos(time * 3 + r * 2) * (160 + r * 28);
-                const py = Math.sin(time * 3 + r * 2) * (160 + r * 28);
-                ctx.beginPath();
-                ctx.arc(px, py, 5, 0, Math.PI * 2);
-                ctx.fillStyle = r === 1 ? "#38bdf8" : "#a855f7";
-                ctx.shadowColor = "#38bdf8";
-                ctx.shadowBlur = 15;
-                ctx.fill();
-                ctx.shadowColor = "transparent";
-
-                ctx.restore();
-            }
-
-            // 2. الهيكل الكروي الزجاجي المحوري لنواة الـ AI (Core Chassis)
-            const coreR = 100;
-
-            ctx.shadowColor = "rgba(2, 132, 199, 0.25)";
-            ctx.shadowBlur = 45;
-
-            const coreGrad = ctx.createRadialGradient(-25, -30, 10, 0, 0, coreR);
-            coreGrad.addColorStop(0, "#ffffff");
-            coreGrad.addColorStop(0.5, "#e0f2fe");
-            coreGrad.addColorStop(0.85, "#0284c7");
-            coreGrad.addColorStop(1, "#0c4a6e");
+            // شريط التقدم البياني المتصاعد
+            const barW = w - 44, barH = 12;
+            const barX = -w / 2 + 22, barY = h / 2 - 32;
 
             ctx.beginPath();
-            ctx.arc(0, 0, coreR, 0, Math.PI * 2);
-            ctx.fillStyle = coreGrad;
+            ctx.roundRect(barX, barY, barW, barH, 6);
+            ctx.fillStyle = "#e2e8f0";
             ctx.fill();
 
-            // حد عاكس بلوري
-            ctx.shadowColor = "transparent";
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 3.5;
-            ctx.stroke();
-
-            // 3. النواة الحسابية فائقة التوهج في المركز (Quantum Processing Nucleus)
-            const nucPulse = 1.0 + Math.sin(time * 6) * 0.08;
             ctx.beginPath();
-            ctx.arc(0, 0, 36 * nucPulse, 0, Math.PI * 2);
-            ctx.fillStyle = "#ffffff";
-            ctx.shadowColor = "#38bdf8";
-            ctx.shadowBlur = 25;
+            ctx.roundRect(barX, barY, barW * (percent / 100), barH, 6);
+            ctx.fillStyle = accentColor;
             ctx.fill();
-            ctx.shadowColor = "transparent";
-
-            // أيقونة شريحة المعالجة في المركز
-            ctx.font = "900 16px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = "#0284c7";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText("AI 4.0", 0, 0);
 
             ctx.restore();
         }
@@ -291,33 +284,33 @@
         async function drawSceneAtTime(time) {
             ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
 
-            // ==================== 1. استقبال الزخم الحركي والتسليم للمشهد الثالث ====================
-            // من 0.0s -> 1.5s: استقبال الاندفاع الأزرق من المشهد 1 والعودة السريعة للوراء (Zoom-Out EaseOutExpo)
-            // من 1.5s -> 6.8s: طفو انسيابي ومتابعة للمسارات العصبية الحية
-            // من 6.8s -> 8.5s: انطلاق حزمة الطاقة الفائقة نحو اليمين تمهيداً لتسليم المشهد 3 (Stripe Checkout)
+            // ==================== 1. محرك الكاميرا واستقبال الاندفاع الذهبي من المشهد 1 ====================
+            // من 0.0s -> 1.2s: استقبال الاندفاع لداخل الشرخ والتراجع السريع للوراء بكشف السائل
+            // من 1.2s -> 8.0s: متابعة تصاعد عدادات الضغط وتدفق السائل
+            // من 8.0s -> 10.0s: انطلاق تيار الشوكولاتة يميناً لتسليم المشهد 3 (بناء الدرع والحدود)
             let camX = CONFIG.width / 2;
             let camY = CONFIG.height / 2;
             let camZoom = 1.0;
             let initialEntryFlash = 0;
-            let exitBeamAlpha = 0;
+            let exitStreamAlpha = 0;
 
-            if (time < 1.4) {
-                // تراجع خاطف مستلم من المشهد الأول
-                const inP = time / 1.4;
+            if (time < 1.2) {
+                // تراجع خاطف مستلم من المشهد 1 (EaseOut)
+                const inP = time / 1.2;
                 const easeDecel = 1 - Math.pow(1 - inP, 3);
-                camZoom = 14.0 - easeDecel * 13.0; // يبدأ من 14x ويتراجع بسلاسة إلى 1.0x
-                initialEntryFlash = 1 - inP; // تلاشي اللون الأزرق المستلم
-            } else if (time < 6.8) {
+                camZoom = 12.0 - easeDecel * 11.0; // يبدأ من 12x ويتراجع لـ 1.0x
+                initialEntryFlash = 1 - inP; // تلاشي الوميض الكهرماني
+            } else if (time < 8.0) {
                 camZoom = 1.0 + Math.sin(time * 1.5) * 0.02;
-                camX = CONFIG.width / 2 + Math.sin(time * 0.8) * 30;
+                camX = CONFIG.width / 2 + Math.sin(time * 0.8) * 25;
                 camY = CONFIG.height / 2 + Math.cos(time * 0.8) * 15;
             } else {
-                // تسارع الكاميرا نحو اليمين تتبع انطلاق شحنة البيانات
-                const outP = (time - 6.8) / 1.7;
-                const easeRight = Math.pow(outP, 2.8);
-                camX = CONFIG.width / 2 + easeRight * 550;
-                camZoom = 1.0 + easeRight * 0.18;
-                exitBeamAlpha = Math.pow(outP, 3.0);
+                // تسارع الكاميرا نحو اليمين تتبع انطلاق التيار نحو قناة التصلب
+                const outP = (time - 8.0) / 2.0;
+                const easeRight = Math.pow(outP, 2.5);
+                camX = CONFIG.width / 2 + easeRight * 500;
+                camZoom = 1.0 + easeRight * 0.15;
+                exitStreamAlpha = Math.pow(outP, 3.0);
             }
 
             ctx.save();
@@ -325,19 +318,19 @@
             ctx.scale(camZoom, camZoom);
             ctx.translate(-camX, -camY);
 
-            // ==================== 2. بيئة الاستوديو الفاتحة والشبكة الموحدة ====================
+            // ==================== 2. بيئة الاستوديو والشبكة المعمارية ====================
             const bgGrad = ctx.createRadialGradient(
                 CONFIG.width / 2, CONFIG.height / 2, 120,
                 CONFIG.width / 2, CONFIG.height / 2, CONFIG.width * 0.9
             );
             bgGrad.addColorStop(0, "#ffffff");
-            bgGrad.addColorStop(0.65, "#f6f7fa");
-            bgGrad.addColorStop(1, "#ebedf2");
+            bgGrad.addColorStop(0.65, "#faf7f4");
+            bgGrad.addColorStop(1, "#f2eae2");
             ctx.fillStyle = bgGrad;
             ctx.fillRect(-400, -400, CONFIG.width + 800, CONFIG.height + 800);
 
-            // شبكة هندسية دقيقة
-            ctx.strokeStyle = "rgba(10, 15, 29, 0.035)";
+            // شبكة دقيقة ممتدة
+            ctx.strokeStyle = "rgba(60, 30, 15, 0.035)";
             ctx.lineWidth = 1;
             const gridSize = 50;
             for (let x = -400; x < CONFIG.width + 400; x += gridSize) {
@@ -347,89 +340,93 @@
                 ctx.beginPath(); ctx.moveTo(-400, y); ctx.lineTo(CONFIG.width + 400, y); ctx.stroke();
             }
 
-            const coreCenter = { x: 960, y: 540 };
+            // ==================== 3. تدفق الشوكولاتة الذائبة (Fluid Simulation) ====================
+            const meltFactor = clamp01(time / 2.5);
+            drawMeltingChocolateFlow(ctx, time, meltFactor);
 
-            // ==================== 3. مسارات السيالات العصبية المشعة (Neural Synaptic Beams) ====================
-            NEURAL_NODES.forEach((node, idx) => {
-                const ctrlX = (coreCenter.x + node.x) / 2;
-                const ctrlY = (coreCenter.y + node.y) / 2 + (idx === 1 ? 40 : -40);
+            // ==================== 4. كروت الضغط النفسي وتتابع السرد ====================
+            // كارت 1: الهروب من المواجهة (يظهر عند 1.2s)
+            if (time >= 0.8) {
+                const c1P = clamp01((time - 0.8) / 0.7);
+                const stress1 = Math.min(98, 40 + easeInOutCubic(clamp01(time / 4.0)) * 58);
+                drawStressMeterCard(ctx, 420, 220, "الخوف الشديد من الرفض", "الخشية من فقدان قبول الآخرين", stress1, "#ef4444", c1P);
+            }
 
-                // مسار السيال الأساسي
+            // كارت 2: صعوبة قول "لا" (يظهر عند 3.6s)
+            if (time >= 3.2) {
+                const c2P = clamp01((time - 3.2) / 0.7);
+                const stress2 = Math.min(100, 50 + easeInOutCubic(clamp01((time - 3.2) / 3.5)) * 50);
+                drawStressMeterCard(ctx, 420, 410, "العجز عن قول «لأ»", "تقديم راحة الجميع على حساب الذات", stress2, "#ea580c", c2P);
+            }
+
+            // كارت 3: تجنب الصدام بأي ثمن (يظهر عند 5.8s)
+            if (time >= 5.5) {
+                const c3P = clamp01((time - 5.5) / 0.7);
+                const stress3 = Math.min(95, 60 + easeInOutCubic(clamp01((time - 5.5) / 3.0)) * 35);
+                drawStressMeterCard(ctx, 420, 600, "الهروب المستمر من المواجهة", "كبت المشاعر الحقيقية تحت الضغط", stress3, "#b45309", c3P);
+            }
+
+            // ==================== 5. التايبوجرافي التعبيري الكبير في الجانب الأيمن ====================
+            // "لكن مع أول ضغط أو مواقف صعبة... بيدوبوا تماماً!"
+            const textAlpha = clamp01((time - 0.6) / 0.8);
+            ctx.save();
+            ctx.translate(1420, 320);
+            ctx.globalAlpha = textAlpha;
+
+            ctx.font = "900 46px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#1c0d06";
+            ctx.textAlign = "right";
+            ctx.fillText("مع أول خلاف أو ضغط...", 0, 0);
+
+            ctx.font = "900 56px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#ea580c";
+            ctx.fillText("بيدوبوا تماماً! ⚠️", 0, 75);
+
+            ctx.font = "600 24px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#64748b";
+            ctx.fillText("الهروب من الصدام خوفاً من خسارة العلاقات", 0, 140);
+            ctx.restore();
+
+            // ==================== 6. انطلاق تيار التسليم للمشهد الثالث جهة اليمين ====================
+            if (time >= 8.0) {
+                const streamP = (time - 8.0) / 2.0;
+                const streamStartX = 960;
+                const streamEndX = CONFIG.width + 400;
+                const headX = streamStartX + Math.pow(streamP, 2.2) * (streamEndX - streamStartX);
+
+                // قناة التدفق السائلة المنطلقة لليمين
                 ctx.beginPath();
-                ctx.moveTo(coreCenter.x, coreCenter.y);
-                ctx.quadraticCurveTo(ctrlX, ctrlY, node.x, node.y);
-                ctx.strokeStyle = "rgba(203, 213, 225, 0.8)";
-                ctx.lineWidth = 4;
-                ctx.stroke();
-
-                // نبضات الطاقة المتدفقة على المسار
-                const pulsePhase = (time * 1.6 + idx * 0.35) % 1.0;
-                const mt = 1 - pulsePhase;
-                const pulseX = mt * mt * coreCenter.x + 2 * mt * pulsePhase * ctrlX + pulsePhase * pulsePhase * node.x;
-                const pulseY = mt * mt * coreCenter.y + 2 * mt * pulsePhase * ctrlY + pulsePhase * pulsePhase * node.y;
-
-                ctx.beginPath();
-                ctx.arc(pulseX, pulseY, 6, 0, Math.PI * 2);
-                ctx.fillStyle = node.color;
-                ctx.shadowColor = node.color;
-                ctx.shadowBlur = 18;
-                ctx.fill();
-                ctx.shadowColor = "transparent";
-
-                // رسم الكارت الزجاجي الفرعي
-                const cardProgress = clamp01((time - 0.8 - idx * 0.2) / 0.7);
-                drawNeuralGlassCard(ctx, node, cardProgress);
-            });
-
-            // ==================== 4. رسم قلب المعالجة المركزي للذكاء الاصطناعي ====================
-            drawCentralAICore(ctx, coreCenter.x, coreCenter.y, time);
-
-            // ==================== 5. انطلاق شحنة التسليم للمشهد الثالث جهة اليمين (Exit Energy Beam) ====================
-            if (time >= 6.8) {
-                const beamP = (time - 6.8) / 1.7;
-                const beamStartX = coreCenter.x;
-                const beamEndX = CONFIG.width + 300;
-                const currentHeadX = beamStartX + Math.pow(beamP, 2.2) * (beamEndX - beamStartX);
-
-                // شعاع ليزري متوهج ينطلق أفقياً نحو اليمين
-                const beamGrad = ctx.createLinearGradient(beamStartX, coreCenter.y, currentHeadX, coreCenter.y);
-                beamGrad.addColorStop(0, "rgba(2, 132, 199, 0.2)");
-                beamGrad.addColorStop(0.7, "#0284c7");
-                beamGrad.addColorStop(1, "#38bdf8");
-
-                ctx.beginPath();
-                ctx.moveTo(beamStartX, coreCenter.y);
-                ctx.lineTo(currentHeadX, coreCenter.y);
-                ctx.strokeStyle = beamGrad;
-                ctx.lineWidth = 14;
+                ctx.moveTo(streamStartX, 580);
+                ctx.lineTo(headX, 580);
+                ctx.strokeStyle = "#ea580c";
+                ctx.lineWidth = 18;
                 ctx.lineCap = "round";
-                ctx.shadowColor = "#38bdf8";
+                ctx.shadowColor = "#f59e0b";
                 ctx.shadowBlur = 30;
                 ctx.stroke();
                 ctx.shadowColor = "transparent";
 
-                // رأس الشحنة النجمي
+                // قلب التيار الذهبي
                 ctx.beginPath();
-                ctx.arc(currentHeadX, coreCenter.y, 22, 0, Math.PI * 2);
-                ctx.fillStyle = "#ffffff";
-                ctx.shadowColor = "#38bdf8";
-                ctx.shadowBlur = 35;
-                ctx.fill();
-                ctx.shadowColor = "transparent";
+                ctx.moveTo(streamStartX, 580);
+                ctx.lineTo(headX, 580);
+                ctx.strokeStyle = "#fef08a";
+                ctx.lineWidth = 6;
+                ctx.stroke();
             }
 
             ctx.restore(); // استعادة الكاميرا
 
-            // ==================== 6. طبقات التلاشي والاتصال اللوني ====================
-            // وميض الدخول المستلم من المشهد الأول
+            // ==================== 7. طبقات التلاشي والاتصال اللوني ====================
+            // وميض الدخول المستلم من المشهد 1
             if (initialEntryFlash > 0.01) {
-                ctx.fillStyle = `rgba(2, 132, 199, ${initialEntryFlash * 0.9})`;
+                ctx.fillStyle = `rgba(245, 158, 11, ${initialEntryFlash * 0.95})`;
                 ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
             }
 
-            // وميض الخروج لتسليم المشهد الثالث في الثانية 8.5
-            if (exitBeamAlpha > 0.01) {
-                ctx.fillStyle = `rgba(2, 132, 199, ${exitBeamAlpha * 0.95})`;
+            // وميض الخروج لتسليم المشهد 3 في الثانية 10.0
+            if (exitStreamAlpha > 0.01) {
+                ctx.fillStyle = `rgba(234, 88, 12, ${clamp01(exitStreamAlpha * 0.95)})`;
                 ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
             }
         }
