@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎨 المشهد الأول: لوحة البيانات والتحليل — Sequence 01 🎨</title>
+    <title>🎨 المشهد الأول: الشخصية الشوكولاتة — المظهر الجذاب 🎨</title>
 
     <!-- روابط الخطوط الرسمية -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,7 +80,7 @@
 <body>
     <div id="viewport">
         <canvas id="videoCanvas"></canvas>
-        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري تحضير المشهد الأول...</span></div>
+        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري معالجة الصوت والمشهد...</span></div>
         <div id="controls-overlay">
             <button class="btn btn-preview" id="btn-replay"><i class="ph ph-arrow-counter-clockwise"></i> تشغيل المعاينة</button>
             <button class="btn btn-preview" id="btn-toggle-console"><i class="ph ph-terminal-window"></i> سجل الأخطاء</button>
@@ -102,11 +102,13 @@
             fps: 30,
             width: 1920,
             height: 1080,
-            duration: 8.5 // 8.5 ثانية لكل مشهد
+            duration: 10.0 // مدة الجزء الأول 10 ثوانٍ
         };
 
-        const OUTPUT_FILENAME = "sequence_scene_1_data_dashboard";
-        const audioBuffer = null;
+        const OUTPUT_FILENAME = "chocolate_personality_scene_1";
+        let audioBuffer = null;
+
+        const CDN_AUDIO_URL = "https://cdn.jsdelivr.net/gh/mo7ammedreyad1/video-bedaya@main/sequence/Generated%20Audio%20August%2031%2C%202026%20-%205_28PM%20(1).wav";
 
         function easeInOutCubic(t) {
             return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -117,37 +119,232 @@
             return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
         }
 
-        async function prepareIdentity() {
-            await document.fonts.ready;
+        // دالة اقتطاع الشريحة الصوتية المحددة برمجياً بدقة متناهية
+        function sliceAudioBuffer(sourceBuffer, startTime, duration) {
+            const actx = getSharedAudioContext();
+            const sampleRate = sourceBuffer.sampleRate;
+            const channels = sourceBuffer.numberOfChannels;
+            const startOffset = Math.floor(startTime * sampleRate);
+            const frameCount = Math.min(Math.floor(duration * sampleRate), sourceBuffer.length - startOffset);
+
+            const sliced = actx.createBuffer(channels, frameCount, sampleRate);
+            for (let c = 0; c < channels; c++) {
+                const sourceData = sourceBuffer.getChannelData(c);
+                const targetData = sliced.getChannelData(c);
+                for (let i = 0; i < frameCount; i++) {
+                    targetData[i] = sourceData[startOffset + i] || 0;
+                }
+            }
+            return sliced;
         }
 
-        // إحداثيات النقطة البؤرية للذروة التي ستدخل فيها الكاميرا لتسليم المشهد الثاني
-        const HANDOFF_FOCAL_POINT = { x: 1260, y: 520 };
+        async function prepareIdentity() {
+            await document.fonts.ready;
+
+            // جلب الصوت الكامل واقتطاع الشريحة الأولى من (0.0s إلى 10.0s)
+            const fullAudio = await fetchAndDecodeAudio(CDN_AUDIO_URL);
+            audioBuffer = sliceAudioBuffer(fullAudio, 0.0, CONFIG.duration);
+        }
+
+        // ==================== 🍫 رسم قالب الشوكولاتة الفاخر ثلاثي الأبعاد (Pseudo-3D) ====================
+        function drawPseudo3DChocolate(ctx, x, y, scale = 1, rotY = 0, crackProgress = 0) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+
+            const w = 320;
+            const h = 420;
+
+            // ظل الشوكولاتة ثلاثي الأبعاد
+            ctx.shadowColor = "rgba(40, 20, 10, 0.25)";
+            ctx.shadowBlur = 45;
+            ctx.shadowOffsetY = 24;
+
+            // 1. لوح الشوكولاتة الداكنة الرئيسي
+            const chocoGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+            chocoGrad.addColorStop(0, "#4a2818");
+            chocoGrad.addColorStop(0.3, "#341a0e");
+            chocoGrad.addColorStop(0.7, "#241209");
+            chocoGrad.addColorStop(1, "#180b05");
+
+            ctx.beginPath();
+            ctx.roundRect(-w / 2, -h / 2, w, h, 20);
+            ctx.fillStyle = chocoGrad;
+            ctx.fill();
+
+            // حد عاكس بلوري
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // 2. المكعبات المقسمة للشوكولاتة (6 قطع مجسمة ببروز ثلاثي الأبعاد)
+            const cols = 2, rows = 3;
+            const padX = 20, padY = 20;
+            const blockW = (w - padX * 3) / cols;
+            const blockH = (h - padY * 4) / rows;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const bx = -w / 2 + padX + c * (blockW + padX) + blockW / 2;
+                    const by = -h / 2 + padY + r * (blockH + padY) + blockH / 2;
+
+                    // بروز المكعب الداخلي
+                    ctx.beginPath();
+                    ctx.roundRect(bx - blockW / 2, by - blockH / 2, blockW, blockH, 10);
+                    ctx.fillStyle = "#3d2012";
+                    ctx.fill();
+
+                    // شطبة الإضاءة العلوية للمكعب (Top Specular Bevel)
+                    ctx.beginPath();
+                    ctx.roundRect(bx - blockW / 2 + 4, by - blockH / 2 + 4, blockW - 8, blockH - 8, 7);
+                    const bGrad = ctx.createLinearGradient(bx, by - blockH / 2, bx, by + blockH / 2);
+                    bGrad.addColorStop(0, "rgba(255, 255, 255, 0.2)");
+                    bGrad.addColorStop(0.5, "#2d160b");
+                    bGrad.addColorStop(1, "rgba(0, 0, 0, 0.4)");
+                    ctx.fillStyle = bGrad;
+                    ctx.fill();
+
+                    // لمعة زجاجية على الحافة
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+
+            // 3. غلاف القصدير الذهبي الأنيق أسفل اللوح (Gold Foil Wrapping)
+            ctx.beginPath();
+            ctx.moveTo(-w / 2 - 4, h / 2 - 120);
+            ctx.lineTo(-w / 2 - 4, h / 2 + 4);
+            ctx.lineTo(w / 2 + 4, h / 2 + 4);
+            ctx.lineTo(w / 2 + 4, h / 2 - 60);
+            ctx.lineTo(0, h / 2 - 90);
+            ctx.closePath();
+
+            const goldGrad = ctx.createLinearGradient(-w / 2, h / 2 - 120, w / 2, h / 2);
+            goldGrad.addColorStop(0, "#f59e0b");
+            goldGrad.addColorStop(0.3, "#fef08a");
+            goldGrad.addColorStop(0.6, "#d97706");
+            goldGrad.addColorStop(1, "#b45309");
+            ctx.fillStyle = goldGrad;
+            ctx.fill();
+
+            // 4. شرخ الضغط والحرارة المتوهج (Momentum Hand-off Crack)
+            if (crackProgress > 0) {
+                ctx.save();
+                ctx.strokeStyle = "#f59e0b";
+                ctx.lineWidth = 4 * crackProgress;
+                ctx.shadowColor = "#f59e0b";
+                ctx.shadowBlur = 25 * crackProgress;
+                ctx.lineCap = "round";
+
+                ctx.beginPath();
+                ctx.moveTo(-20, -h / 2 + 50);
+                ctx.lineTo(15, -40);
+                ctx.lineTo(-10, 30);
+                ctx.lineTo(25, 120);
+                ctx.stroke();
+
+                // توهج أبيض بؤري في قلب الشرخ
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2 * crackProgress;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            ctx.restore();
+        }
+
+        // رسم كارت السمات النفسية الزجاجي
+        function drawTraitCard(ctx, x, y, titleAr, subtitleAr, tagEn, accentColor, progress) {
+            if (progress <= 0) return;
+
+            const w = 380, h = 150;
+            ctx.save();
+            ctx.translate(x, y);
+            const scale = 0.86 + 0.14 * easeOutBack(progress);
+            ctx.scale(scale, scale);
+            ctx.globalAlpha = clamp01(progress);
+
+            // ظل الكارت
+            ctx.shadowColor = "rgba(10, 15, 29, 0.08)";
+            ctx.shadowBlur = 30;
+            ctx.shadowOffsetY = 14;
+
+            // جسم الكارت الزجاجي
+            ctx.beginPath();
+            ctx.roundRect(-w / 2, -h / 2, w, h, 22);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+            ctx.fill();
+
+            // الحد العاكس
+            ctx.shadowColor = "transparent";
+            const borderGrad = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+            borderGrad.addColorStop(0, "#ffffff");
+            borderGrad.addColorStop(0.35, accentColor);
+            borderGrad.addColorStop(0.75, "rgba(226, 232, 240, 0.85)");
+            borderGrad.addColorStop(1, "rgba(255, 255, 255, 0.4)");
+            ctx.strokeStyle = borderGrad;
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+
+            // شارة الميزة
+            const badgeW = 150, badgeH = 26;
+            ctx.beginPath();
+            ctx.roundRect(w / 2 - badgeW - 20, -h / 2 + 18, badgeW, badgeH, 13);
+            ctx.fillStyle = "rgba(15, 23, 42, 0.04)";
+            ctx.fill();
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.font = "800 10px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = accentColor;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(tagEn, w / 2 - badgeW / 2 - 20, -h / 2 + 31);
+
+            // العنوان العربي
+            ctx.font = "800 21px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#0f172a";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "top";
+            ctx.fillText(titleAr, w / 2 - 22, -h / 2 + 56);
+
+            // السطر التوضيحي
+            ctx.font = "500 14px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#64748b";
+            ctx.fillText(subtitleAr, w / 2 - 22, -h / 2 + 96);
+
+            ctx.restore();
+        }
 
         async function drawSceneAtTime(time) {
             ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
 
-            // ==================== 1. محرك الكاميرا المتصلة والتسليم الحركي (Hand-off Momentum) ====================
-            // من 0.0s -> 6.5s: طفو هادئ ومتابعة للبيانات
-            // من 6.5s -> 8.5s: اندفاع أسي سريع جداً (Zoom-In) نحو النقطة البؤرية (1260, 520)
+            // ==================== 1. محرك الكاميرا المتصلة والتسليم الحركي ====================
+            // من 0.0s -> 8.5s: طفو هادئ ومتابعة السمات النفسية
+            // من 8.5s -> 10.0s: اندفاع أسي سريع جداً (Zoom-In) لداخل الشرخ الذهبي لتسليم المشهد 2
             let camX = CONFIG.width / 2;
             let camY = CONFIG.height / 2;
             let camZoom = 1.0;
-            let handoffFlashAlpha = 0;
+            let handoffFlash = 0;
 
-            if (time < 6.5) {
-                const p = easeInOutCubic(time / 6.5);
-                camZoom = 1.0 + Math.sin(time * 1.5) * 0.02;
-                camX = CONFIG.width / 2 + Math.sin(p * Math.PI) * 25;
-                camY = CONFIG.height / 2 + Math.cos(p * Math.PI) * 15;
+            const focalPoint = { x: 1240, y: 540 }; // مركز قالب الشوكولاتة
+
+            if (time < 8.5) {
+                const p = easeInOutCubic(time / 8.5);
+                camZoom = 1.0 + Math.sin(time * 1.2) * 0.02;
+                camX = CONFIG.width / 2 + Math.sin(p * Math.PI) * 20;
+                camY = CONFIG.height / 2 + Math.cos(p * Math.PI) * 10;
             } else {
-                // تسارع أسي هائل نحو نقطة التسليم
-                const zoomP = (time - 6.5) / 2.0;
-                const easePush = Math.pow(zoomP, 3.2); // تسارع للأمام
-                camX = CONFIG.width / 2 + easePush * (HANDOFF_FOCAL_POINT.x - CONFIG.width / 2);
-                camY = CONFIG.height / 2 + easePush * (HANDOFF_FOCAL_POINT.y - CONFIG.height / 2);
-                camZoom = 1.0 + easePush * 22.0; // تكبير هائل يدخل داخل النواة الزرقاء
-                handoffFlashAlpha = Math.pow(zoomP, 4.0); // الشاشة تمتلئ بالطاقة الزرقاء عند 8.5s
+                // تسارع أسي هائل نحو نقطة التسليم في الشرخ
+                const zoomP = (time - 8.5) / 1.5;
+                const easePush = Math.pow(zoomP, 3.2);
+                camX = CONFIG.width / 2 + easePush * (focalPoint.x - CONFIG.width / 2);
+                camY = CONFIG.height / 2 + easePush * (focalPoint.y - CONFIG.height / 2);
+                camZoom = 1.0 + easePush * 18.0;
+                handoffFlash = Math.pow(zoomP, 3.5);
             }
 
             ctx.save();
@@ -155,233 +352,102 @@
             ctx.scale(camZoom, camZoom);
             ctx.translate(-camX, -camY);
 
-            // ==================== 2. بيئة الاستوديو الفاتحة والشبكة المعمارية ====================
+            // ==================== 2. بيئة الاستوديو الدافئة ====================
             const bgGrad = ctx.createRadialGradient(
-                CONFIG.width / 2, CONFIG.height / 2, 120,
+                CONFIG.width / 2, CONFIG.height / 2, 100,
                 CONFIG.width / 2, CONFIG.height / 2, CONFIG.width * 0.85
             );
             bgGrad.addColorStop(0, "#ffffff");
-            bgGrad.addColorStop(0.65, "#f6f7fa");
-            bgGrad.addColorStop(1, "#ebedf2");
+            bgGrad.addColorStop(0.65, "#fbf9f6");
+            bgGrad.addColorStop(1, "#f3ede6");
             ctx.fillStyle = bgGrad;
-            ctx.fillRect(-200, -200, CONFIG.width + 400, CONFIG.height + 400);
+            ctx.fillRect(-300, -300, CONFIG.width + 600, CONFIG.height + 600);
 
-            // شبكة هندسية دقيقة موحدة
-            ctx.strokeStyle = "rgba(10, 15, 29, 0.035)";
+            // شبكة هندسية دقيقة
+            ctx.strokeStyle = "rgba(60, 30, 15, 0.035)";
             ctx.lineWidth = 1;
             const gridSize = 50;
-            for (let x = -200; x < CONFIG.width + 200; x += gridSize) {
-                ctx.beginPath(); ctx.moveTo(x, -200); ctx.lineTo(x, CONFIG.height + 200); ctx.stroke();
+            for (let x = -300; x < CONFIG.width + 300; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, -300); ctx.lineTo(x, CONFIG.height + 300); ctx.stroke();
             }
-            for (let y = -200; y < CONFIG.height + 200; y += gridSize) {
-                ctx.beginPath(); ctx.moveTo(-200, y); ctx.lineTo(CONFIG.width + 200, y); ctx.stroke();
+            for (let y = -300; y < CONFIG.height + 300; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(-300, y); ctx.lineTo(CONFIG.width + 300, y); ctx.stroke();
             }
 
-            // ==================== 3. لوحة البيانات والتحكم الرئيسية (Main Analytics Dashboard) ====================
-            const dashW = 1260, dashH = 720;
-            const dashX = CONFIG.width / 2, dashY = CONFIG.height / 2;
+            // ==================== 3. التايبوجرافي التعبيري وسرد القصة (Narrative Cascade) ====================
+            // المقطع 1 (0.0s -> 3.8s): "بتشوفهم دايماً مبتسمين... كلامهم حلو"
+            if (time < 3.8) {
+                const t1Alpha = clamp01(time / 0.8);
+                ctx.save();
+                ctx.translate(560, 380);
+                ctx.globalAlpha = t1Alpha;
 
-            const entrance = clamp01(time / 0.8);
-            const dashScale = 0.92 + 0.08 * easeOutBack(entrance);
-
-            ctx.save();
-            ctx.translate(dashX, dashY);
-            ctx.scale(dashScale, dashScale);
-
-            // ظل الاستوديو الفاخر
-            ctx.shadowColor = "rgba(10, 15, 29, 0.09)";
-            ctx.shadowBlur = 45;
-            ctx.shadowOffsetY = 22;
-
-            // هيكل اللوحة الزجاجي النقي
-            ctx.beginPath();
-            ctx.roundRect(-dashW / 2, -dashH / 2, dashW, dashH, 32);
-            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-            ctx.fill();
-
-            // الحد الزجاجي العاكس
-            ctx.shadowColor = "transparent";
-            const borderGrad = ctx.createLinearGradient(-dashW / 2, -dashH / 2, dashW / 2, dashH / 2);
-            borderGrad.addColorStop(0, "#ffffff");
-            borderGrad.addColorStop(0.35, "rgba(2, 132, 199, 0.6)");
-            borderGrad.addColorStop(0.75, "rgba(226, 232, 240, 0.85)");
-            borderGrad.addColorStop(1, "rgba(255, 255, 255, 0.4)");
-            ctx.strokeStyle = borderGrad;
-            ctx.lineWidth = 2.0;
-            ctx.stroke();
-
-            // ------------------ الشريط العلوي للوحة ------------------
-            ctx.font = "800 13px 'Plus Jakarta Sans', sans-serif";
-            ctx.fillStyle = "#0284c7";
-            ctx.textAlign = "right";
-            ctx.fillText("PHASE 01 · DATA ARCHITECTURE & TELEMETRY", dashW / 2 - 40, -dashH / 2 + 52);
-
-            ctx.font = "900 28px 'IBM Plex Sans Arabic', sans-serif";
-            ctx.fillStyle = "#0a0f1d";
-            ctx.fillText("منظومة المعالجة والبيانات الحية", dashW / 2 - 40, -dashH / 2 + 96);
-
-            // بادج حالة الخوادم الحية
-            ctx.beginPath();
-            ctx.roundRect(-dashW / 2 + 40, -dashH / 2 + 42, 220, 36, 18);
-            ctx.fillStyle = "rgba(16, 185, 129, 0.08)";
-            ctx.fill();
-            ctx.strokeStyle = "#10b981";
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(-dashW / 2 + 62, -dashH / 2 + 60, 4.5, 0, Math.PI * 2);
-            ctx.fillStyle = "#10b981";
-            ctx.fill();
-
-            ctx.font = "700 12px 'IBM Plex Sans Arabic', 'Plus Jakarta Sans'";
-            ctx.fillStyle = "#065f46";
-            ctx.textAlign = "left";
-            ctx.textBaseline = "middle";
-            ctx.fillText("النظام نشط · زمن الاستجابة 12ms", -dashW / 2 + 76, -dashH / 2 + 60);
-
-            // خط فاصل علوي
-            ctx.strokeStyle = "#e2e8f0";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(-dashW / 2 + 40, -dashH / 2 + 125);
-            ctx.lineTo(dashW / 2 - 40, -dashH / 2 + 125);
-            ctx.stroke();
-
-            // ------------------ البطاقات الجانبية الثلاث ------------------
-            const stats = [
-                { label: "حجم التدفق البياني", val: "4.8 TB/s", sub: "+342% معدل نمو متسارع", col: "#0284c7" },
-                { label: "كفاءة الذكاء الاصطناعي", val: "99.8%", sub: "معالجة فورية فائقة الدقة", col: "#7c3aed" },
-                { label: "الاستقرار السحابي", val: "100%", sub: "اتفاقية تشغيل SLA 99.99%", col: "#059669" }
-            ];
-
-            const statW = 340, statH = 150;
-            const statStartX = -dashW / 2 + 40;
-
-            stats.forEach((st, idx) => {
-                const sy = -dashH / 2 + 155 + idx * (statH + 20);
-
-                ctx.beginPath();
-                ctx.roundRect(statStartX, sy, statW, statH, 20);
-                ctx.fillStyle = "#f8fafc";
-                ctx.fill();
-                ctx.strokeStyle = "#e2e8f0";
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
-
-                ctx.font = "700 14px 'IBM Plex Sans Arabic'";
-                ctx.fillStyle = "#64748b";
+                ctx.font = "800 48px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#1e1008";
                 ctx.textAlign = "right";
-                ctx.textBaseline = "top";
-                ctx.fillText(st.label, statStartX + statW - 20, sy + 20);
+                ctx.fillText("بتشوفهم دايماً مبتسمين...", 0, 0);
 
-                ctx.font = "900 36px 'Plus Jakarta Sans'";
-                ctx.fillStyle = st.col;
-                ctx.fillText(st.val, statStartX + statW - 20, sy + 48);
-
-                ctx.font = "600 12px 'IBM Plex Sans Arabic'";
-                ctx.fillStyle = "#334155";
-                ctx.fillText(st.sub, statStartX + statW - 20, sy + 105);
-            });
-
-            // ------------------ كارت الرسم البياني الأوسط الأيمن (Chart Showcase) ------------------
-            const chartCardW = 790, chartCardH = 490;
-            const chartCardX = dashW / 2 - chartCardW - 40;
-            const chartCardY = -dashH / 2 + 155;
-
-            ctx.beginPath();
-            ctx.roundRect(chartCardX, chartCardY, chartCardW, chartCardH, 24);
-            ctx.fillStyle = "#0f172a"; // كارت داكن تباين عالي (Obsidian Contrast)
-            ctx.fill();
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            // شبكة الرسم البياني الداخلية الداكنة
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-            for (let cy = chartCardY + 60; cy < chartCardY + chartCardH - 40; cy += 60) {
-                ctx.beginPath(); ctx.moveTo(chartCardX + 30, cy); ctx.lineTo(chartCardX + chartCardW - 30, cy); ctx.stroke();
+                ctx.font = "600 36px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#d97706";
+                ctx.fillText("كلامهم حلو وجذابين للجميع", 0, 65);
+                ctx.restore();
             }
 
-            // نقاط المنحنى البياني المتصاعد
-            const chartAnim = easeInOutCubic(clamp01(time / 4.0));
-            const pts = [
-                { x: chartCardX + 60, y: chartCardY + chartCardH - 70 },
-                { x: chartCardX + 180, y: chartCardY + chartCardH - 140 * chartAnim },
-                { x: chartCardX + 320, y: chartCardY + chartCardH - 110 * chartAnim },
-                { x: chartCardX + 460, y: chartCardY + chartCardH - 260 * chartAnim },
-                { x: chartCardX + 590, y: chartCardY + chartCardH - 220 * chartAnim },
-                { x: chartCardX + 710, y: chartCardY + chartCardH - 380 * chartAnim } // قمة الذروة (Focal Point)
-            ];
-
-            // مساحة التدرج اللوني أسفل المنحنى
-            ctx.beginPath();
-            ctx.moveTo(pts[0].x, chartCardY + chartCardH - 50);
-            pts.forEach(p => ctx.lineTo(p.x, p.y));
-            ctx.lineTo(pts[pts.length - 1].x, chartCardY + chartCardH - 50);
-            ctx.closePath();
-
-            const areaGrad = ctx.createLinearGradient(0, chartCardY, 0, chartCardY + chartCardH);
-            areaGrad.addColorStop(0, "rgba(2, 132, 199, 0.45)");
-            areaGrad.addColorStop(1, "rgba(2, 132, 199, 0)");
-            ctx.fillStyle = areaGrad;
-            ctx.fill();
-
-            // خط المنحنى المتوهج
-            ctx.beginPath();
-            ctx.moveTo(pts[0].x, pts[0].y);
-            for (let i = 1; i < pts.length; i++) {
-                ctx.lineTo(pts[i].x, pts[i].y);
+            // المقطع 2 (3.8s -> 7.0s): كروت السمات النفسية تظهر تباعاً
+            if (time >= 1.0) {
+                const card1P = clamp01((time - 1.0) / 0.7);
+                drawTraitCard(ctx, 480, 260, "الابتسامة والجاذبية الدائمة", "حضور مشرق ومحبوب للجميع", "CHARISMA & CHARM", "#d97706", card1P);
             }
-            ctx.strokeStyle = "#38bdf8";
-            ctx.lineWidth = 4;
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            ctx.shadowColor = "#0284c7";
-            ctx.shadowBlur = 18;
-            ctx.stroke();
-            ctx.shadowColor = "transparent";
 
-            // رسم النقاط على المنحنى
-            pts.forEach((p, idx) => {
-                const isPeak = idx === pts.length - 1;
+            if (time >= 3.5) {
+                const card2P = clamp01((time - 3.5) / 0.7);
+                drawTraitCard(ctx, 480, 460, "اللطف المفرط وإرضاء الناس", "صعوبة في وضع الحدود أو الرفض", "PEOPLE PLEASING", "#ea580c", card2P);
+            }
+
+            if (time >= 6.0) {
+                const card3P = clamp01((time - 6.0) / 0.7);
+                drawTraitCard(ctx, 480, 660, "المظهر المثالي الجذاب", "غلاف خارجي يبدو متماسكاً تماماً", "THE SWEET SHELL", "#8b5cf6", card3P);
+            }
+
+            // المقطع 3 (6.8s -> 10.0s): إعلان المصطلح «الشخصية الشوكولاتة»
+            if (time >= 6.5) {
+                const badgeP = clamp01((time - 6.5) / 0.6);
+                ctx.save();
+                ctx.translate(CONFIG.width / 2, 100);
+                const bScale = 0.9 + 0.1 * easeOutBack(badgeP);
+                ctx.scale(bScale, bScale);
+                ctx.globalAlpha = badgeP;
+
+                const headW = 540, headH = 56;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, isPeak ? 10 : 5, 0, Math.PI * 2);
-                ctx.fillStyle = isPeak ? "#38bdf8" : "#ffffff";
+                ctx.roundRect(-headW / 2, -headH / 2, headW, headH, 28);
+                ctx.fillStyle = "#2d160b";
                 ctx.fill();
-                ctx.strokeStyle = "#0284c7";
-                ctx.lineWidth = isPeak ? 3.5 : 2;
+                ctx.strokeStyle = "#f59e0b";
+                ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // حلقات النبض المشعة حول نقطة الذروة (Hand-off Focal Core)
-                if (isPeak) {
-                    const peakPulse = (time * 2.5) % 1.0;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, 10 + peakPulse * 35, 0, Math.PI * 2);
-                    ctx.strokeStyle = `rgba(56, 189, 248, ${1 - peakPulse})`;
-                    ctx.lineWidth = 2.5;
-                    ctx.stroke();
+                ctx.font = "900 22px 'IBM Plex Sans Arabic', sans-serif";
+                ctx.fillStyle = "#fef08a";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("في علم النفس: «الشخصية الشوكولاتة» 🍫", 0, 0);
+                ctx.restore();
+            }
 
-                    // شارة القمة الرقمية
-                    ctx.beginPath();
-                    ctx.roundRect(p.x - 75, p.y - 52, 150, 34, 8);
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-                    ctx.fill();
-                    ctx.font = "800 13px 'Plus Jakarta Sans'";
-                    ctx.fillStyle = "#0284c7";
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    ctx.fillText("PEAK: +342.8%", p.x, p.y - 35);
-                }
-            });
+            // ==================== 4. رسم قالب الشوكولاتة المجسم والشرخ المتوهج ====================
+            const chocoX = focalPoint.x;
+            const chocoY = focalPoint.y;
+            const chocoHover = Math.sin(time * 2.0) * 8;
 
-            ctx.restore(); // استعادة اللوحة
+            const crackProgress = time >= 8.2 ? clamp01((time - 8.2) / 1.5) : 0;
+            drawPseudo3DChocolate(ctx, chocoX, chocoY + chocoHover, 1.25, Math.sin(time) * 0.1, crackProgress);
 
             ctx.restore(); // استعادة الكاميرا
 
-            // ==================== 4. طاقة التسليم الحركي المشعة في النهاية (Hand-off Charge Overlay) ====================
-            if (handoffFlashAlpha > 0.01) {
-                ctx.fillStyle = `rgba(2, 132, 199, ${clamp01(handoffFlashAlpha)})`;
+            // ==================== 5. وميض التسليم المشحون للحرارة والذوبان للمشهد 2 ====================
+            if (handoffFlash > 0.01) {
+                ctx.fillStyle = `rgba(245, 158, 11, ${clamp01(handoffFlash * 0.95)})`;
                 ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
             }
         }
@@ -684,4 +750,4 @@
         window.addEventListener('load', init);
     </script>
 </body>
-</html>
+    </html>
