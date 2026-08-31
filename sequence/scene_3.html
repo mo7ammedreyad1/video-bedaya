@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 المشهد الثالث: بوابة الاعتماد والدفع — Sequence 03 🎨</title>
+
+    <!-- روابط الخطوط الرسمية -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: #080a0f; color: #ffffff;
+            font-family: 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+        #viewport {
+            position: relative;
+            /* 16:9 Landscape: 960x540 */
+            width: 960px; height: 540px;
+            background: #f5f5f5;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65);
+            border-radius: 16px; overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        #hud {
+            position: absolute; top: 16px; right: 16px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px);
+            color: #010101; padding: 6px 14px; border-radius: 30px;
+            font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.06); z-index: 10;
+        }
+        .spinner {
+            width: 12px; height: 12px; border: 2px solid #e5e5e5;
+            border-top: 2px solid #0a0f1d; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #controls-overlay {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10; background: rgba(10, 15, 29, 0.92);
+            padding: 6px 12px; border-radius: 40px; backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn {
+            font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 14px;
+            border-radius: 20px; border: none; cursor: pointer; display: flex;
+            align-items: center; gap: 6px; transition: all 0.2s ease;
+        }
+        .btn-preview { background: rgba(255, 255, 255, 0.12); color: #f8fafc; }
+        .btn-preview:hover { background: rgba(255, 255, 255, 0.22); }
+        .btn-render { background: #0a0f1d; color: #ffffff; }
+        .btn-render:hover { background: #1e293b; }
+        #console-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 650px; max-width: 90vw; height: 380px; background: #0a0f1d;
+            border: 1px solid #1e293b; border-radius: 12px; box-shadow: 0 30px 70px rgba(0,0,0,0.7);
+            z-index: 100; display: none; flex-direction: column; overflow: hidden;
+        }
+        #console-header {
+            background: #1e293b; padding: 10px 16px; display: flex;
+            justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold;
+        }
+        #console-output {
+            flex: 1; padding: 12px; overflow-y: auto; font-family: monospace;
+            font-size: 12px; color: #cbd5e1; background: #070a12; line-height: 1.5;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-info { color: #38bdf8; }
+        .log-warn { color: #facc15; }
+        .log-error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div id="viewport">
+        <canvas id="videoCanvas"></canvas>
+        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري تحضير المشهد الثالث...</span></div>
+        <div id="controls-overlay">
+            <button class="btn btn-preview" id="btn-replay"><i class="ph ph-arrow-counter-clockwise"></i> تشغيل المعاينة</button>
+            <button class="btn btn-preview" id="btn-toggle-console"><i class="ph ph-terminal-window"></i> سجل الأخطاء</button>
+            <button class="btn btn-render" id="btn-render-start"><i class="ph-fill ph-video-camera"></i> تصدير الفيديو</button>
+        </div>
+    </div>
+
+    <div id="console-modal">
+        <div id="console-header">
+            <span><i class="ph ph-terminal-window"></i> سجل النظام والأخطاء</span>
+            <button class="btn btn-preview" id="btn-close-console" style="color:#fff; background:#ff4444; border:none; padding:4px 14px;">إغلاق</button>
+        </div>
+        <div id="console-output"></div>
+    </div>
+
+    <script type="module">
+        // ============ 🎨 طبقة الهوية بالكامل — هنا ============
+        const CONFIG = {
+            fps: 30,
+            width: 1920,
+            height: 1080,
+            duration: 8.5
+        };
+
+        const OUTPUT_FILENAME = "sequence_scene_3_payment_authorization";
+        const audioBuffer = null;
+
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+        function easeOutBack(t) {
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        }
+
+        // ==================== 🖐️ كود الـ SVG ليد الماوس المعتمد ====================
+        const EXACT_SVG_STRING = `<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 32 32" width="256" height="256" enable-background="new 0 0 32 32" xml:space="preserve">
+<g>
+	<defs><rect id="SVGID_1_" width="32" height="32"/></defs>
+	<clipPath id="SVGID_2_"><use xlink:href="#SVGID_1_" overflow="visible"/></clipPath>
+	<path clip-path="url(#SVGID_2_)" fill="#FFFFFF" d="M11.3,20.4c-0.3-0.4-0.6-1.1-1.2-2c-0.3-0.5-1.2-1.5-1.5-1.9
+		c-0.2-0.4-0.2-0.6-0.1-1c0.1-0.6,0.7-1.1,1.4-1.1c0.5,0,1,0.4,1.4,0.7c0.2,0.2,0.5,0.6,0.7,0.8c0.2,0.2,0.2,0.3,0.4,0.5
+		c0.2,0.3,0.3,0.5,0.2,0.1c-0.1-0.5-0.2-1.3-0.4-2.1c-0.1-0.6-0.2-0.7-0.3-1.1c-0.1-0.5-0.2-0.8-0.3-1.3c-0.1-0.3-0.2-1.1-0.3-1.5
+		c-0.1-0.5-0.1-1.4,0.3-1.8c0.3-0.3,0.9-0.4,1.3-0.2c0.5,0.3,0.8,1,0.9,1.3c0.2,0.5,0.4,1.2,0.5,2c0.2,1,0.5,2.5,0.5,2.8
+		c0-0.4-0.1-1.1,0-1.5c0.1-0.3,0.3-0.7,0.7-0.8c0.3-0.1,0.6-0.1,0.9-0.1c0.3,0.1,0.6,0.3,0.8,0.5c0.4,0.6,0.4,1.9,0.4,1.8
+		c0.1-0.4,0.1-1.2,0.3-1.6c0.1-0.2,0.5-0.4,0.7-0.5c0.3-0.1,0.7-0.1,1,0c0.2,0,0.6,0.3,0.7,0.5c0.2,0.3,0.3,1.3,0.4,1.7
+		c0,0.1,0.1-0.4,0.3-0.7c0.4-0.6,1.8-0.8,1.9,0.6c0,0.7,0,0.6,0,1.1c0,0.5,0,0.8,0,1.2c0,0.4-0.1,1.3-0.2,1.7
+		c-0.1,0.3-0.4,1-0.7,1.4c0,0-1.1,1.2-1.2,1.8c-0.1,0.6-0.1,0.6-0.1,1c0,0.4,0.1,0.9,0.1,0.9s-0.8,0.1-1.2,0c-0.4-0.1-0.9-0.8-1-1.1
+		c-0.2-0.3-0.5-0.3-0.7,0c-0.2,0.4-0.7,1.1-1.1,1.1c-0.7,0.1-2.1,0-3.1,0c0,0,0.2-1-0.2-1.4c-0.3-0.3-0.8-0.8-1.1-1.1L11.3,20.4z"/>
+	<path clip-path="url(#SVGID_2_)" fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round" d="
+		M11.3,20.4c-0.3-0.4-0.6-1.1-1.2-2c-0.3-0.5-1.2-1.5-1.5-1.9c-0.2-0.4-0.2-0.6-0.1-1c0.1-0.6,0.7-1.1,1.4-1.1c0.5,0,1,0.4,1.4,0.7
+		c0.2,0.2,0.5,0.6,0.7,0.8c0.2,0.2,0.2,0.3,0.4,0.5c0.2,0.3,0.3,0.5,0.2,0.1c-0.1-0.5-0.2-1.3-0.4-2.1c-0.1-0.6-0.2-0.7-0.3-1.1
+		c-0.1-0.5-0.2-0.8-0.3-1.3c-0.1-0.3-0.2-1.1-0.3-1.5c-0.1-0.5-0.1-1.4,0.3-1.8c0.3-0.3,0.9-0.4,1.3-0.2c0.5,0.3,0.8,1,0.9,1.3
+		c0.2,0.5,0.4,1.2,0.5,2c0.2,1,0.5,2.5,0.5,2.8c0-0.4-0.1-1.1,0-1.5c0.1-0.3,0.3-0.7,0.7-0.8c0.3-0.1,0.6-0.1,0.9-0.1
+		c0.3,0.1,0.6,0.3,0.8,0.5c0.4,0.6,0.4,1.9,0.4,1.8c0.1-0.4,0.1-1.2,0.3-1.6c0.1-0.2,0.5-0.4,0.7-0.5c0.3-0.1,0.7-0.1,1,0
+		c0.2,0,0.6,0.3,0.7,0.5c0.2,0.3,0.3,1.3,0.4,1.7c0,0.1,0.1-0.4,0.3-0.7c0.4-0.6,1.8-0.8,1.9,0.6c0,0.7,0,0.6,0,1.1
+		c0,0.5,0,0.8,0,1.2c0,0.4-0.1,1.3-0.2,1.7c-0.1,0.3-0.4,1-0.7,1.4c0,0-1.1,1.2-1.2,1.8c-0.1,0.6-0.1,0.6-0.1,1
+		c0,0.4,0.1,0.9,0.1,0.9s-0.8,0.1-1.2,0c-0.4-0.1-0.9-0.8-1-1.1c-0.2-0.3-0.5-0.3-0.7,0c-0.2,0.4-0.7,1.1-1.1,1.1
+		c-0.7,0.1-2.1,0-3.1,0c0,0,0.2-1-0.2-1.4c-0.3-0.3-0.8-0.8-1.1-1.1L11.3,20.4z"/>
+	<line clip-path="url(#SVGID_2_)" fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" x1="19.6" y1="20.7" x2="19.6" y2="17.3"/>
+	<line clip-path="url(#SVGID_2_)" fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" x1="17.6" y1="20.7" x2="17.5" y2="17.3"/>
+	<line clip-path="url(#SVGID_2_)" fill="none" stroke="#000000" stroke-width="0.75" stroke-linecap="round" x1="15.6" y1="17.3" x2="15.6" y2="20.7"/>
+</g>
+</svg>`;
+
+        let handImage = null;
+
+        // ==================== 🛠️ أيقونات الدفع الفيكتورية (Apple Logo, Visa, Lock) ====================
+        const PayVectors = {
+            appleLogo(ctx, x, y, size = 18, color = "#ffffff") {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(size * 0.08, -size * 0.42);
+                ctx.bezierCurveTo(size * 0.25, -size * 0.58, size * 0.45, -size * 0.45, size * 0.38, -size * 0.25);
+                ctx.bezierCurveTo(size * 0.2, -size * 0.12, 0, -size * 0.22, size * 0.08, -size * 0.42);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.moveTo(0, -size * 0.18);
+                ctx.bezierCurveTo(-size * 0.22, -size * 0.3, -size * 0.48, -size * 0.15, -size * 0.48, size * 0.15);
+                ctx.bezierCurveTo(-size * 0.48, size * 0.42, -size * 0.22, size * 0.58, 0, size * 0.55);
+                ctx.bezierCurveTo(size * 0.22, size * 0.58, size * 0.48, size * 0.42, size * 0.48, size * 0.15);
+                ctx.bezierCurveTo(size * 0.36, size * 0.12, size * 0.36, -size * 0.12, size * 0.48, -size * 0.15);
+                ctx.bezierCurveTo(size * 0.32, -size * 0.3, size * 0.15, -size * 0.22, 0, -size * 0.18);
+                ctx.fill();
+                ctx.restore();
+            },
+            visa(ctx, x, y, w = 50, h = 30) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.beginPath();
+                ctx.roundRect(-w/2, -h/2, w, h, 4);
+                ctx.fillStyle = "#ffffff";
+                ctx.fill();
+                ctx.strokeStyle = "#e2e8f0";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.font = "900 14px 'Plus Jakarta Sans', sans-serif";
+                ctx.fillStyle = "#1a1f71";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("VISA", 0, 1);
+                ctx.restore();
+            },
+            mastercard(ctx, x, y, w = 50, h = 30) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.beginPath();
+                ctx.roundRect(-w/2, -h/2, w, h, 4);
+                ctx.fillStyle = "#ffffff";
+                ctx.fill();
+                ctx.strokeStyle = "#e2e8f0";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.beginPath(); ctx.arc(-6, 0, 8, 0, Math.PI*2); ctx.fillStyle = "#eb001b"; ctx.fill();
+                ctx.beginPath(); ctx.arc(6, 0, 8, 0, Math.PI*2); ctx.fillStyle = "rgba(247, 158, 0, 0.9)"; ctx.fill();
+                ctx.restore();
+            },
+            lock(ctx, x, y, size = 13, color = "#635bff") {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.fillStyle = color;
+                ctx.fillRect(-size/2, -size/4, size, size*0.75);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.6;
+                ctx.beginPath(); ctx.arc(0, -size/4, size/3, Math.PI, 0); ctx.stroke();
+                ctx.restore();
+            }
+        };
+
+        async function prepareIdentity() {
+            await document.fonts.ready;
+
+            handImage = new Image();
+            const svgBlob = new Blob([EXACT_SVG_STRING], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            await new Promise((resolve, reject) => {
+                handImage.onload = resolve;
+                handImage.onerror = reject;
+                handImage.src = url;
+            });
+        }
+
+        async function drawSceneAtTime(time) {
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // ==================== 1. استقبال الزخم الحركي والاتصال مع المشهد الرابع ====================
+            // من 0.0s -> 1.2s: شعاع الطاقة يدخل من أقصى اليسار ويستقر في استمارة الدفع (استلام مباشر من المشهد 2)
+            // من 1.2s -> 6.8s: إدخال البيانات ونقر يد الماوس SVG والمعالجة
+            // من 6.8s -> 8.5s: انفجار موجة التأكيد الخضراء الزمردية لتسليم المشهد الرابع
+            let initialEntryFlash = 0;
+            let exitGreenFlash = 0;
+
+            if (time < 1.2) {
+                initialEntryFlash = 1 - (time / 1.2);
+            } else if (time >= 6.8) {
+                const outP = (time - 6.8) / 1.7;
+                exitGreenFlash = Math.pow(outP, 2.5); // شحنة خضراء تشع وتملأ الشاشة عند 8.5s
+            }
+
+            // حركة الكاميرا المتصلة
+            let camX = CONFIG.width / 2;
+            let camY = CONFIG.height / 2;
+            let camZoom = 1.0;
+
+            if (time < 2.5) {
+                const p = easeInOutCubic(time / 2.5);
+                camZoom = 1.08 - p * 0.04;
+                camX = CONFIG.width / 2 - 30;
+                camY = 510;
+            } else if (time < 6.8) {
+                camZoom = 1.04;
+                camX = CONFIG.width / 2;
+                camY = 540;
+            } else {
+                const p = easeInOutCubic((time - 6.8) / 1.7);
+                camZoom = 1.04 + p * 0.12; // تمدد الكاميرا مع الانفجار الأخضر
+            }
+
+            ctx.save();
+            ctx.translate(CONFIG.width / 2, CONFIG.height / 2);
+            ctx.scale(camZoom, camZoom);
+            ctx.translate(-camX, -camY);
+
+            // ==================== 2. بيئة الاستوديو وتقسيم ملء الشاشة ====================
+            const leftWidth = 780; // ملخص الفاتورة
+            const rightWidth = CONFIG.width - leftWidth; // استمارة الدفع
+
+            // ------------------ القسم الأيمن (ملخص الفاتورة والاشتراك) ------------------
+            const summaryGrad = ctx.createLinearGradient(0, 0, leftWidth, CONFIG.height);
+            summaryGrad.addColorStop(0, "#f8fbfd");
+            summaryGrad.addColorStop(0.5, "#f1f5f9");
+            summaryGrad.addColorStop(1, "#e6edf5");
+            ctx.fillStyle = summaryGrad;
+            ctx.fillRect(CONFIG.width - leftWidth, 0, leftWidth, CONFIG.height);
+
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(CONFIG.width - leftWidth, 0);
+            ctx.lineTo(CONFIG.width - leftWidth, CONFIG.height);
+            ctx.stroke();
+
+            const sumRightMargin = CONFIG.width - 80;
+
+            ctx.font = "700 14px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#64748b";
+            ctx.textAlign = "right";
+            ctx.fillText("PHASE 03 · GLOBAL AUTHORIZATION", sumRightMargin, 80);
+
+            ctx.font = "800 14px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = "#635bff";
+            ctx.fillText("PRO STUDIO WORKSPACE", sumRightMargin, 160);
+
+            ctx.font = "900 36px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#0a2540";
+            ctx.fillText("الاشتراك السنوي الشامل", sumRightMargin, 215);
+
+            ctx.font = "900 68px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = "#0a2540";
+            ctx.fillText("$149.00", sumRightMargin, 305);
+
+            ctx.font = "600 16px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#64748b";
+            ctx.fillText("تفعيل فوري للمنظومة والذكاء الاصطناعي", sumRightMargin, 350);
+
+            const tableY = 410;
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(sumRightMargin, tableY); ctx.lineTo(CONFIG.width - leftWidth + 80, tableY); ctx.stroke();
+
+            ctx.font = "700 16px 'IBM Plex Sans Arabic'";
+            ctx.fillStyle = "#334155";
+            ctx.fillText("باقة الذكاء الاصطناعي Pro (سنوي)", sumRightMargin, tableY + 50);
+            ctx.textAlign = "left";
+            ctx.fillText("$149.00", CONFIG.width - leftWidth + 80, tableY + 50);
+
+            ctx.textAlign = "right";
+            ctx.fillText("الضريبة المضافة (0%)", sumRightMargin, tableY + 100);
+            ctx.textAlign = "left";
+            ctx.fillText("$0.00", CONFIG.width - leftWidth + 80, tableY + 100);
+
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.beginPath(); ctx.moveTo(sumRightMargin, tableY + 135); ctx.lineTo(CONFIG.width - leftWidth + 80, tableY + 135); ctx.stroke();
+
+            ctx.font = "900 20px 'IBM Plex Sans Arabic'";
+            ctx.fillStyle = "#0a2540";
+            ctx.textAlign = "right";
+            ctx.fillText("المجموع الإجمالي للدفع", sumRightMargin, tableY + 180);
+            ctx.textAlign = "left";
+            ctx.fillText("$149.00", CONFIG.width - leftWidth + 80, tableY + 180);
+
+            PayVectors.lock(ctx, sumRightMargin - 10, CONFIG.height - 75, 15, "#635bff");
+            ctx.font = "700 13px 'Plus Jakarta Sans', 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#635bff";
+            ctx.textAlign = "right";
+            ctx.fillText("Powered by Stripe  ·  تشفير بنكي 256-Bit SSL آمن بالكامل", sumRightMargin - 35, CONFIG.height - 70);
+
+            // ------------------ القسم الأيسر (استمارة الدفع في ملء الشاشة) ------------------
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, rightWidth, CONFIG.height);
+
+            const formW = 720;
+            const formStartX = (rightWidth - formW) / 2;
+
+            // 1. زر الدفع السريع Apple Pay
+            const appleBtnY = 120;
+            ctx.beginPath();
+            ctx.roundRect(formStartX, appleBtnY, formW, 62, 10);
+            ctx.fillStyle = "#000000";
+            ctx.fill();
+
+            PayVectors.appleLogo(ctx, formStartX + formW / 2 - 32, appleBtnY + 31, 24, "#ffffff");
+            ctx.font = "800 24px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText("Pay", formStartX + formW / 2 - 16, appleBtnY + 31);
+
+            // فاصل "أو الدفع بالبطاقة"
+            const dividerY = appleBtnY + 105;
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(formStartX, dividerY); ctx.lineTo(formStartX + formW * 0.35, dividerY);
+            ctx.moveTo(formStartX + formW * 0.65, dividerY); ctx.lineTo(formStartX + formW, dividerY);
+            ctx.stroke();
+
+            ctx.font = "600 13px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#8898aa";
+            ctx.textAlign = "center";
+            ctx.fillText("أو الدفع بواسطة البطاقة الائتمانية", formStartX + formW / 2, dividerY);
+
+            // 2. حقل البريد الإلكتروني
+            const emailFieldY = dividerY + 45;
+            ctx.font = "700 14px 'IBM Plex Sans Arabic'";
+            ctx.fillStyle = "#334155";
+            ctx.textAlign = "right";
+            ctx.fillText("البريد الإلكتروني للعميل", formStartX + formW, emailFieldY);
+
+            ctx.beginPath();
+            ctx.roundRect(formStartX, emailFieldY + 12, formW, 54, 8);
+            ctx.fillStyle = "#f8fafc";
+            ctx.fill();
+            ctx.strokeStyle = "#cbd5e1";
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+
+            ctx.font = "600 16px 'Plus Jakarta Sans'";
+            ctx.fillStyle = "#0a2540";
+            ctx.fillText("client@studio.pro", formStartX + formW - 20, emailFieldY + 40);
+
+            // 3. حقل بيانات البطاقة
+            const cardBlockY = emailFieldY + 105;
+            ctx.font = "700 14px 'IBM Plex Sans Arabic'";
+            ctx.fillStyle = "#334155";
+            ctx.fillText("بيانات البطاقة الائتمانية", formStartX + formW, cardBlockY);
+
+            ctx.beginPath();
+            ctx.roundRect(formStartX, cardBlockY + 12, formW, 108, 8);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+            ctx.strokeStyle = time >= 1.5 ? "#635bff" : "#cbd5e1";
+            ctx.lineWidth = time >= 1.5 ? 2.0 : 1.4;
+            ctx.stroke();
+
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(formStartX, cardBlockY + 12 + 54); ctx.lineTo(formStartX + formW, cardBlockY + 12 + 54);
+            ctx.moveTo(formStartX + formW / 2, cardBlockY + 12 + 54); ctx.lineTo(formStartX + formW / 2, cardBlockY + 12 + 108);
+            ctx.stroke();
+
+            PayVectors.visa(ctx, formStartX + 45, cardBlockY + 39, 52, 30);
+            PayVectors.mastercard(ctx, formStartX + 105, cardBlockY + 39, 52, 30);
+
+            let cardNum = "4242 •••• •••• 4242";
+            if (time < 2.2) cardNum = "•••• •••• •••• ••••";
+
+            ctx.font = "700 18px 'Plus Jakarta Sans'";
+            ctx.fillStyle = "#0a2540";
+            ctx.textAlign = "right";
+            ctx.fillText(cardNum, formStartX + formW - 24, cardBlockY + 40);
+
+            ctx.fillText(time >= 2.6 ? "12 / 28" : "MM / YY", formStartX + formW - 24, cardBlockY + 94);
+            ctx.fillText(time >= 3.0 ? "888" : "CVC", formStartX + formW / 2 - 24, cardBlockY + 94);
+
+            // 4. زر إتمام الدفع النهائي
+            const payBtnY = cardBlockY + 160;
+            const isPaying = time >= 4.2 && time < 5.8;
+            const isPaid = time >= 5.8;
+
+            let payScale = 1.0;
+            if (time >= 4.0 && time < 4.8) {
+                const p = (time - 4.0) / 0.8;
+                payScale = p < 0.35 ? 0.95 : 1.0 + Math.sin(p * Math.PI) * 0.03;
+            }
+
+            ctx.save();
+            ctx.translate(formStartX + formW / 2, payBtnY + 31);
+            ctx.scale(payScale, payScale);
+
+            ctx.beginPath();
+            ctx.roundRect(-formW / 2, -31, formW, 62, 10);
+            ctx.fillStyle = isPaid ? "#059669" : "#635bff";
+            ctx.fill();
+
+            ctx.shadowColor = isPaid ? "rgba(5, 150, 105, 0.4)" : "rgba(99, 91, 255, 0.4)";
+            ctx.shadowBlur = 24;
+            ctx.shadowOffsetY = 10;
+
+            if (isPaying) {
+                ctx.save();
+                ctx.rotate(time * 12);
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 3.5;
+                ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 1.5); ctx.stroke();
+                ctx.restore();
+            } else {
+                ctx.font = "800 20px 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif";
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                const btnLabel = isPaid ? "تم تأكيد الاعتماد بنجاح  ✓" : "دفع وتفعيل المنظومة $149.00";
+                ctx.fillText(btnLabel, 0, 0);
+            }
+            ctx.restore();
+
+            // ==================== 3. استقبال شعاع الطاقة القادم من المشهد 2 ====================
+            if (time < 1.0) {
+                const beamInP = time / 1.0;
+                const headX = -100 + beamInP * (formStartX + formW);
+
+                ctx.beginPath();
+                ctx.moveTo(-200, cardBlockY + 40);
+                ctx.lineTo(headX, cardBlockY + 40);
+                ctx.strokeStyle = "#38bdf8";
+                ctx.lineWidth = 12 * (1 - beamInP * 0.5);
+                ctx.lineCap = "round";
+                ctx.shadowColor = "#0284c7";
+                ctx.shadowBlur = 25;
+                ctx.stroke();
+                ctx.shadowColor = "transparent";
+            }
+
+            // ==================== 4. حركة مؤشر يد الماوس SVG المعتمدة ====================
+            const targetPayBtn = { x: formStartX + formW / 2, y: payBtnY + 31 };
+
+            let handX = targetPayBtn.x + 300;
+            let handY = targetPayBtn.y + 240;
+            let handDip = 0;
+
+            if (time < 2.0) {
+                handX = targetPayBtn.x + 300;
+                handY = targetPayBtn.y + 240;
+            } else if (time < 4.0) {
+                const p = easeInOutCubic((time - 2.0) / 2.0);
+                handX = targetPayBtn.x + 300 - p * 300;
+                handY = targetPayBtn.y + 240 - p * 240 - Math.sin(p * Math.PI) * 40;
+            } else if (time < 4.6) {
+                handX = targetPayBtn.x;
+                handY = targetPayBtn.y;
+                handDip = Math.sin(((time - 4.0) / 0.6) * Math.PI) * 10;
+            } else {
+                handX = targetPayBtn.x + Math.sin(time * 2) * 5;
+                handY = targetPayBtn.y + 15 + Math.cos(time * 2) * 4;
+            }
+
+            if (handImage && time >= 1.5) {
+                ctx.save();
+                const drawSize = 115;
+                const hotspotOffsetX = (12.5 / 32) * drawSize;
+                const hotspotOffsetY = (7.5 / 32) * drawSize;
+
+                ctx.translate(handX, handY + handDip);
+
+                ctx.shadowColor = "rgba(10, 15, 29, 0.22)";
+                ctx.shadowBlur = 18;
+                ctx.shadowOffsetY = 8;
+
+                ctx.drawImage(handImage, -hotspotOffsetX, -hotspotOffsetY, drawSize, drawSize);
+                ctx.restore();
+            }
+
+            // ==================== 5. انفجار موجة التأكيد الخضراء لتسليم المشهد 4 ====================
+            if (time >= 6.8) {
+                const blastP = (time - 6.8) / 1.7;
+                const blastR = blastP * CONFIG.width * 1.2;
+
+                ctx.beginPath();
+                ctx.arc(formStartX + formW / 2, payBtnY + 31, blastR, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(16, 185, 129, ${blastP * 0.95})`;
+                ctx.fill();
+            }
+
+            ctx.restore(); // استعادة الكاميرا
+
+            // وميض الدخول الأزرق المستلم من المشهد 2
+            if (initialEntryFlash > 0.01) {
+                ctx.fillStyle = `rgba(2, 132, 199, ${initialEntryFlash * 0.85})`;
+                ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+            }
+
+            // وميض الخروج الأخضر الزمردي لتسليم المشهد 4 في الثانية 8.5
+            if (exitGreenFlash > 0.01) {
+                ctx.fillStyle = `rgba(16, 185, 129, ${clamp01(exitGreenFlash)})`;
+                ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+            }
+        }
+
+        // ============ ⚙️ الطبقة التقنية الثابتة — من هنا تحت ============
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const statusText = document.getElementById('status-text');
+        const spinner = document.getElementById('spinner');
+
+        let audioAudioEl = null;
+        let sharedAudioCtx = null;
+        let state = { currentTime: 0, isRendering: false, animationFrameId: null };
+
+        window.renderStatus = 'loading';
+
+        function logToConsole(msg, type = 'info') {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clamp01(val) { return Math.max(0, Math.min(1, val)); }
+
+        function layoutArabicParagraph(text, font, maxWidth, wordGap, lineHeight, centerY) {
+            ctx.font = font;
+            const words = text.split(' ');
+            const lines = [];
+            let currentWords = [], currentWidth = 0;
+
+            words.forEach(w => {
+                const wordWidth = ctx.measureText(w).width;
+                const testWidth = currentWidth + (currentWords.length > 0 ? wordGap : 0) + wordWidth;
+                if (testWidth > maxWidth && currentWords.length > 0) {
+                    lines.push({ words: currentWords, width: currentWidth });
+                    currentWords = []; currentWidth = 0;
+                }
+                currentWords.push({ text: w, width: wordWidth });
+                currentWidth += (currentWords.length > 1 ? wordGap : 0) + wordWidth;
+            });
+            if (currentWords.length) lines.push({ words: currentWords, width: currentWidth });
+
+            const totalHeight = lines.length * lineHeight;
+            const startY = centerY - totalHeight / 2 + lineHeight / 2;
+            const flatWords = [];
+
+            lines.forEach((line, li) => {
+                const lineY = startY + li * lineHeight;
+                let currentX = (CONFIG.width / 2) + (line.width / 2);
+                line.words.forEach(w => {
+                    const wx = currentX - w.width;
+                    flatWords.push({ text: w.text, x: wx + w.width / 2, y: lineY });
+                    currentX -= (w.width + wordGap);
+                });
+            });
+            return flatWords;
+        }
+
+        function audioBufferToWavBlob(buffer) {
+            const numOfChan = buffer.numberOfChannels;
+            const length = buffer.length * numOfChan * 2 + 44;
+            const out = new DataView(new ArrayBuffer(length));
+            let channels = [], sample, offset = 0, pos = 0;
+
+            function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+            function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+            setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+            setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+            setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+            setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164);
+            setUint32(length - pos - 4);
+
+            for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+
+            while (offset < buffer.length) {
+                for (let i = 0; i < numOfChan; i++) {
+                    sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+                    out.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+
+            return new Blob([out], { type: "audio/wav" });
+        }
+
+        function getSharedAudioContext() {
+            if (!sharedAudioCtx) sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return sharedAudioCtx;
+        }
+
+        async function fetchAndDecodeAudio(url) {
+            if (!/^https:\/\//i.test(url)) throw new Error(`رابط صوت غير آمن: ${url}`);
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`فشل جلب الصوت: ${url}`);
+            const arrayBuf = await res.arrayBuffer();
+            if (arrayBuf.byteLength < 1024) throw new Error(`حجم الملف صغير جداً: ${url}`);
+            return getSharedAudioContext().decodeAudioData(arrayBuf);
+        }
+
+        function concatenateAudioBuffers(buffers) {
+            if (!buffers || buffers.length === 0) throw new Error("مفيش أي AudioBuffer لتلزيقه");
+            const sampleRate = buffers[0].sampleRate;
+            const channelsCount = buffers[0].numberOfChannels;
+            const totalSamples = buffers.reduce((sum, b) => sum + b.length, 0);
+            const combined = getSharedAudioContext().createBuffer(channelsCount, totalSamples, sampleRate);
+
+            let sampleOffset = 0, timeOffset = 0.0;
+            const segments = [];
+
+            for (const buf of buffers) {
+                for (let ch = 0; ch < channelsCount; ch++) {
+                    combined.getChannelData(ch).set(buf.getChannelData(ch), sampleOffset);
+                }
+                const duration = buf.duration;
+                segments.push({ start: timeOffset, end: timeOffset + duration, duration });
+                sampleOffset += buf.length;
+                timeOffset += duration;
+            }
+            return { buffer: combined, segments };
+        }
+
+        async function createBrollFrameSampler(url, options = {}) {
+            const videoEl = document.createElement('video');
+            videoEl.crossOrigin = 'anonymous'; videoEl.muted = true;
+            videoEl.playsInline = true; videoEl.preload = 'auto'; videoEl.src = url;
+
+            await new Promise((resolve, reject) => {
+                videoEl.onloadeddata = resolve;
+                videoEl.onerror = () => reject(new Error(`فشل تحميل فيديو B-roll: ${url}`));
+            });
+
+            const targetW = options.width || videoEl.videoWidth;
+            const targetH = options.height || videoEl.videoHeight;
+            const fit = options.fit || 'cover';
+            const sampleCanvas = document.createElement('canvas');
+            sampleCanvas.width = targetW; sampleCanvas.height = targetH;
+            const sampleCtx = sampleCanvas.getContext('2d');
+
+            sampleCtx.drawImage(videoEl, 0, 0, 1, 1);
+            let corsOk = true;
+            try { sampleCtx.getImageData(0, 0, 1, 1); } catch (e) { corsOk = false; }
+
+            if (!corsOk && options.posterFallbackUrl) {
+                const posterImg = new Image(); posterImg.crossOrigin = 'anonymous';
+                await new Promise((resolve, reject) => {
+                    posterImg.onload = resolve;
+                    posterImg.onerror = () => reject(new Error(`فشل تحميل صورة fallback: ${options.posterFallbackUrl}`));
+                    posterImg.src = options.posterFallbackUrl;
+                });
+                return {
+                    videoEl: null, isFallbackImage: true,
+                    async getFrameAt(time) {
+                        const zoom = 1.0 + Math.min(time / 10, 1) * 0.06;
+                        const iw = posterImg.naturalWidth, ih = posterImg.naturalHeight;
+                        const scale = Math.max(targetW / iw, targetH / ih) * zoom;
+                        const dw = iw * scale, dh = ih * scale;
+                        const dx = (targetW - dw) / 2, dy = (targetH - dh) / 2;
+                        sampleCtx.clearRect(0, 0, targetW, targetH);
+                        sampleCtx.drawImage(posterImg, dx, dy, dw, dh);
+                        return sampleCanvas;
+                    }
+                };
+            }
+
+            if (!corsOk) throw new Error(`فيديو B-roll لا يدعم CORS: ${url}`);
+            const useFrameCallback = typeof videoEl.requestVideoFrameCallback === 'function';
+
+            return {
+                videoEl,
+                async getFrameAt(time) {
+                    const seekTime = Math.min(Math.max(time, 0), Math.max(videoEl.duration - 0.01, 0));
+                    await new Promise((resolve, reject) => {
+                        const timeoutId = setTimeout(() => reject(new Error(`تأخر الفريم عند ${seekTime}s: ${url}`)), 5000);
+                        if (useFrameCallback) {
+                            videoEl.requestVideoFrameCallback(() => { clearTimeout(timeoutId); resolve(); });
+                        } else {
+                            videoEl.onseeked = () => { clearTimeout(timeoutId); resolve(); };
+                        }
+                        videoEl.currentTime = seekTime;
+                    });
+
+                    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+                    const scale = fit === 'contain' ? Math.min(targetW / vw, targetH / vh) : Math.max(targetW / vw, targetH / vh);
+                    const dw = vw * scale, dh = vh * scale;
+                    const dx = (targetW - dw) / 2, dy = (targetH - dh) / 2;
+
+                    sampleCtx.clearRect(0, 0, targetW, targetH);
+                    sampleCtx.drawImage(videoEl, dx, dy, dw, dh);
+                    return sampleCanvas;
+                }
+            };
+        }
+
+        function startPreviewLoop() {
+            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+            if (audioAudioEl) {
+                audioAudioEl.currentTime = 0;
+                audioAudioEl.play().catch(e => logToConsole("تنبيه الصوت: " + e.message, 'warn'));
+            }
+
+            const startTime = performance.now();
+            async function loop(now) {
+                if (state.isRendering) return;
+                const elapsed = (now - startTime) / 1000;
+                const currTime = audioAudioEl ? audioAudioEl.currentTime : (elapsed % CONFIG.duration);
+                state.currentTime = currTime;
+                await drawSceneAtTime(currTime);
+
+                if (currTime < CONFIG.duration) {
+                    state.animationFrameId = requestAnimationFrame(loop);
+                } else {
+                    statusText.textContent = "جاهز للعرض والتصدير ✓";
+                    spinner.style.display = 'none';
+                }
+            }
+            state.animationFrameId = requestAnimationFrame(loop);
+        }
+
+        const OFOQ_FRAME_FORMAT = 'image/png';
+        window.__ofoqTotalFrames = 0;
+        window.__ofoqFps = 0;
+        window.__ofoqOutputFilename = '';
+        window.__ofoqAudioWavBase64 = null;
+
+        async function __ofoqGetFrameBatch(startFrame, count) {
+            const frames = [];
+            for (let i = 0; i < count; i++) {
+                const frameIndex = startFrame + i;
+                if (frameIndex >= window.__ofoqTotalFrames) break;
+                const timestamp = frameIndex / window.__ofoqFps;
+                await drawSceneAtTime(timestamp);
+                const dataUrl = canvas.toDataURL(OFOQ_FRAME_FORMAT);
+                frames.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+            }
+            return frames;
+        }
+        window.__ofoqGetFrameBatch = __ofoqGetFrameBatch;
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
+        }
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            statusText.textContent = "جاري عرض المعاينة...";
+            spinner.style.display = 'inline-block';
+            startPreviewLoop();
+        });
+
+        document.getElementById('btn-toggle-console').addEventListener('click', () => {
+            const modal = document.getElementById('console-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        });
+
+        document.getElementById('btn-close-console').addEventListener('click', () => {
+            document.getElementById('console-modal').style.display = 'none';
+        });
+
+        document.getElementById('btn-render-start').addEventListener('click', () => {
+            logToConsole("التصدير الفعلي يتم عبر render-runner.js (Node + ffmpeg).", 'warn');
+        });
+
+        async function init() {
+            try {
+                await prepareIdentity();
+                canvas.width = CONFIG.width;
+                canvas.height = CONFIG.height;
+                window.__ofoqFps = CONFIG.fps;
+                window.__ofoqTotalFrames = Math.ceil(CONFIG.duration * CONFIG.fps);
+                window.__ofoqOutputFilename = `${OUTPUT_FILENAME}.mp4`;
+
+                if (audioBuffer) {
+                    const wavBlob = audioBufferToWavBlob(audioBuffer);
+                    audioAudioEl = new Audio(URL.createObjectURL(wavBlob));
+                    window.__ofoqAudioWavBase64 = arrayBufferToBase64(await wavBlob.arrayBuffer());
+                }
+
+                statusText.textContent = "جاهز للعرض والتصدير ✓";
+                spinner.style.display = 'none';
+                window.renderStatus = 'ready';
+                await drawSceneAtTime(0);
+            } catch (err) {
+                logToConsole("خطأ أثناء التهيئة: " + err.message, 'error');
+                statusText.textContent = "حدث خطأ أثناء التحميل";
+                window.__renderError = err.message;
+                window.renderStatus = 'error';
+            }
+        }
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
