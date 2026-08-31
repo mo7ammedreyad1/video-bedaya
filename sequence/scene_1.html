@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 المشهد الأول: لوحة البيانات والتحليل — Sequence 01 🎨</title>
+
+    <!-- روابط الخطوط الرسمية -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: #080a0f; color: #ffffff;
+            font-family: 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+        }
+        #viewport {
+            position: relative;
+            /* 16:9 Landscape: 960x540 */
+            width: 960px; height: 540px;
+            background: #f5f5f5;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65);
+            border-radius: 16px; overflow: hidden;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        #hud {
+            position: absolute; top: 16px; right: 16px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px);
+            color: #010101; padding: 6px 14px; border-radius: 30px;
+            font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.06); z-index: 10;
+        }
+        .spinner {
+            width: 12px; height: 12px; border: 2px solid #e5e5e5;
+            border-top: 2px solid #0a0f1d; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #controls-overlay {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10; background: rgba(10, 15, 29, 0.92);
+            padding: 6px 12px; border-radius: 40px; backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn {
+            font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 14px;
+            border-radius: 20px; border: none; cursor: pointer; display: flex;
+            align-items: center; gap: 6px; transition: all 0.2s ease;
+        }
+        .btn-preview { background: rgba(255, 255, 255, 0.12); color: #f8fafc; }
+        .btn-preview:hover { background: rgba(255, 255, 255, 0.22); }
+        .btn-render { background: #0a0f1d; color: #ffffff; }
+        .btn-render:hover { background: #1e293b; }
+        #console-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 650px; max-width: 90vw; height: 380px; background: #0a0f1d;
+            border: 1px solid #1e293b; border-radius: 12px; box-shadow: 0 30px 70px rgba(0,0,0,0.7);
+            z-index: 100; display: none; flex-direction: column; overflow: hidden;
+        }
+        #console-header {
+            background: #1e293b; padding: 10px 16px; display: flex;
+            justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold;
+        }
+        #console-output {
+            flex: 1; padding: 12px; overflow-y: auto; font-family: monospace;
+            font-size: 12px; color: #cbd5e1; background: #070a12; line-height: 1.5;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-info { color: #38bdf8; }
+        .log-warn { color: #facc15; }
+        .log-error { color: #f87171; }
+    </style>
+</head>
+<body>
+    <div id="viewport">
+        <canvas id="videoCanvas"></canvas>
+        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري تحضير المشهد الأول...</span></div>
+        <div id="controls-overlay">
+            <button class="btn btn-preview" id="btn-replay"><i class="ph ph-arrow-counter-clockwise"></i> تشغيل المعاينة</button>
+            <button class="btn btn-preview" id="btn-toggle-console"><i class="ph ph-terminal-window"></i> سجل الأخطاء</button>
+            <button class="btn btn-render" id="btn-render-start"><i class="ph-fill ph-video-camera"></i> تصدير الفيديو</button>
+        </div>
+    </div>
+
+    <div id="console-modal">
+        <div id="console-header">
+            <span><i class="ph ph-terminal-window"></i> سجل النظام والأخطاء</span>
+            <button class="btn btn-preview" id="btn-close-console" style="color:#fff; background:#ff4444; border:none; padding:4px 14px;">إغلاق</button>
+        </div>
+        <div id="console-output"></div>
+    </div>
+
+    <script type="module">
+        // ============ 🎨 طبقة الهوية بالكامل — هنا ============
+        const CONFIG = {
+            fps: 30,
+            width: 1920,
+            height: 1080,
+            duration: 8.5 // 8.5 ثانية لكل مشهد
+        };
+
+        const OUTPUT_FILENAME = "sequence_scene_1_data_dashboard";
+        const audioBuffer = null;
+
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+        function easeOutBack(t) {
+            const c1 = 1.70158;
+            const c3 = c1 + 1;
+            return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        }
+
+        async function prepareIdentity() {
+            await document.fonts.ready;
+        }
+
+        // إحداثيات النقطة البؤرية للذروة التي ستدخل فيها الكاميرا لتسليم المشهد الثاني
+        const HANDOFF_FOCAL_POINT = { x: 1260, y: 520 };
+
+        async function drawSceneAtTime(time) {
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // ==================== 1. محرك الكاميرا المتصلة والتسليم الحركي (Hand-off Momentum) ====================
+            // من 0.0s -> 6.5s: طفو هادئ ومتابعة للبيانات
+            // من 6.5s -> 8.5s: اندفاع أسي سريع جداً (Zoom-In) نحو النقطة البؤرية (1260, 520)
+            let camX = CONFIG.width / 2;
+            let camY = CONFIG.height / 2;
+            let camZoom = 1.0;
+            let handoffFlashAlpha = 0;
+
+            if (time < 6.5) {
+                const p = easeInOutCubic(time / 6.5);
+                camZoom = 1.0 + Math.sin(time * 1.5) * 0.02;
+                camX = CONFIG.width / 2 + Math.sin(p * Math.PI) * 25;
+                camY = CONFIG.height / 2 + Math.cos(p * Math.PI) * 15;
+            } else {
+                // تسارع أسي هائل نحو نقطة التسليم
+                const zoomP = (time - 6.5) / 2.0;
+                const easePush = Math.pow(zoomP, 3.2); // تسارع للأمام
+                camX = CONFIG.width / 2 + easePush * (HANDOFF_FOCAL_POINT.x - CONFIG.width / 2);
+                camY = CONFIG.height / 2 + easePush * (HANDOFF_FOCAL_POINT.y - CONFIG.height / 2);
+                camZoom = 1.0 + easePush * 22.0; // تكبير هائل يدخل داخل النواة الزرقاء
+                handoffFlashAlpha = Math.pow(zoomP, 4.0); // الشاشة تمتلئ بالطاقة الزرقاء عند 8.5s
+            }
+
+            ctx.save();
+            ctx.translate(CONFIG.width / 2, CONFIG.height / 2);
+            ctx.scale(camZoom, camZoom);
+            ctx.translate(-camX, -camY);
+
+            // ==================== 2. بيئة الاستوديو الفاتحة والشبكة المعمارية ====================
+            const bgGrad = ctx.createRadialGradient(
+                CONFIG.width / 2, CONFIG.height / 2, 120,
+                CONFIG.width / 2, CONFIG.height / 2, CONFIG.width * 0.85
+            );
+            bgGrad.addColorStop(0, "#ffffff");
+            bgGrad.addColorStop(0.65, "#f6f7fa");
+            bgGrad.addColorStop(1, "#ebedf2");
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(-200, -200, CONFIG.width + 400, CONFIG.height + 400);
+
+            // شبكة هندسية دقيقة موحدة
+            ctx.strokeStyle = "rgba(10, 15, 29, 0.035)";
+            ctx.lineWidth = 1;
+            const gridSize = 50;
+            for (let x = -200; x < CONFIG.width + 200; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, -200); ctx.lineTo(x, CONFIG.height + 200); ctx.stroke();
+            }
+            for (let y = -200; y < CONFIG.height + 200; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(-200, y); ctx.lineTo(CONFIG.width + 200, y); ctx.stroke();
+            }
+
+            // ==================== 3. لوحة البيانات والتحكم الرئيسية (Main Analytics Dashboard) ====================
+            const dashW = 1260, dashH = 720;
+            const dashX = CONFIG.width / 2, dashY = CONFIG.height / 2;
+
+            const entrance = clamp01(time / 0.8);
+            const dashScale = 0.92 + 0.08 * easeOutBack(entrance);
+
+            ctx.save();
+            ctx.translate(dashX, dashY);
+            ctx.scale(dashScale, dashScale);
+
+            // ظل الاستوديو الفاخر
+            ctx.shadowColor = "rgba(10, 15, 29, 0.09)";
+            ctx.shadowBlur = 45;
+            ctx.shadowOffsetY = 22;
+
+            // هيكل اللوحة الزجاجي النقي
+            ctx.beginPath();
+            ctx.roundRect(-dashW / 2, -dashH / 2, dashW, dashH, 32);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+            ctx.fill();
+
+            // الحد الزجاجي العاكس
+            ctx.shadowColor = "transparent";
+            const borderGrad = ctx.createLinearGradient(-dashW / 2, -dashH / 2, dashW / 2, dashH / 2);
+            borderGrad.addColorStop(0, "#ffffff");
+            borderGrad.addColorStop(0.35, "rgba(2, 132, 199, 0.6)");
+            borderGrad.addColorStop(0.75, "rgba(226, 232, 240, 0.85)");
+            borderGrad.addColorStop(1, "rgba(255, 255, 255, 0.4)");
+            ctx.strokeStyle = borderGrad;
+            ctx.lineWidth = 2.0;
+            ctx.stroke();
+
+            // ------------------ الشريط العلوي للوحة ------------------
+            ctx.font = "800 13px 'Plus Jakarta Sans', sans-serif";
+            ctx.fillStyle = "#0284c7";
+            ctx.textAlign = "right";
+            ctx.fillText("PHASE 01 · DATA ARCHITECTURE & TELEMETRY", dashW / 2 - 40, -dashH / 2 + 52);
+
+            ctx.font = "900 28px 'IBM Plex Sans Arabic', sans-serif";
+            ctx.fillStyle = "#0a0f1d";
+            ctx.fillText("منظومة المعالجة والبيانات الحية", dashW / 2 - 40, -dashH / 2 + 96);
+
+            // بادج حالة الخوادم الحية
+            ctx.beginPath();
+            ctx.roundRect(-dashW / 2 + 40, -dashH / 2 + 42, 220, 36, 18);
+            ctx.fillStyle = "rgba(16, 185, 129, 0.08)";
+            ctx.fill();
+            ctx.strokeStyle = "#10b981";
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(-dashW / 2 + 62, -dashH / 2 + 60, 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#10b981";
+            ctx.fill();
+
+            ctx.font = "700 12px 'IBM Plex Sans Arabic', 'Plus Jakarta Sans'";
+            ctx.fillStyle = "#065f46";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText("النظام نشط · زمن الاستجابة 12ms", -dashW / 2 + 76, -dashH / 2 + 60);
+
+            // خط فاصل علوي
+            ctx.strokeStyle = "#e2e8f0";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-dashW / 2 + 40, -dashH / 2 + 125);
+            ctx.lineTo(dashW / 2 - 40, -dashH / 2 + 125);
+            ctx.stroke();
+
+            // ------------------ البطاقات الجانبية الثلاث ------------------
+            const stats = [
+                { label: "حجم التدفق البياني", val: "4.8 TB/s", sub: "+342% معدل نمو متسارع", col: "#0284c7" },
+                { label: "كفاءة الذكاء الاصطناعي", val: "99.8%", sub: "معالجة فورية فائقة الدقة", col: "#7c3aed" },
+                { label: "الاستقرار السحابي", val: "100%", sub: "اتفاقية تشغيل SLA 99.99%", col: "#059669" }
+            ];
+
+            const statW = 340, statH = 150;
+            const statStartX = -dashW / 2 + 40;
+
+            stats.forEach((st, idx) => {
+                const sy = -dashH / 2 + 155 + idx * (statH + 20);
+
+                ctx.beginPath();
+                ctx.roundRect(statStartX, sy, statW, statH, 20);
+                ctx.fillStyle = "#f8fafc";
+                ctx.fill();
+                ctx.strokeStyle = "#e2e8f0";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.font = "700 14px 'IBM Plex Sans Arabic'";
+                ctx.fillStyle = "#64748b";
+                ctx.textAlign = "right";
+                ctx.textBaseline = "top";
+                ctx.fillText(st.label, statStartX + statW - 20, sy + 20);
+
+                ctx.font = "900 36px 'Plus Jakarta Sans'";
+                ctx.fillStyle = st.col;
+                ctx.fillText(st.val, statStartX + statW - 20, sy + 48);
+
+                ctx.font = "600 12px 'IBM Plex Sans Arabic'";
+                ctx.fillStyle = "#334155";
+                ctx.fillText(st.sub, statStartX + statW - 20, sy + 105);
+            });
+
+            // ------------------ كارت الرسم البياني الأوسط الأيمن (Chart Showcase) ------------------
+            const chartCardW = 790, chartCardH = 490;
+            const chartCardX = dashW / 2 - chartCardW - 40;
+            const chartCardY = -dashH / 2 + 155;
+
+            ctx.beginPath();
+            ctx.roundRect(chartCardX, chartCardY, chartCardW, chartCardH, 24);
+            ctx.fillStyle = "#0f172a"; // كارت داكن تباين عالي (Obsidian Contrast)
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // شبكة الرسم البياني الداخلية الداكنة
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+            for (let cy = chartCardY + 60; cy < chartCardY + chartCardH - 40; cy += 60) {
+                ctx.beginPath(); ctx.moveTo(chartCardX + 30, cy); ctx.lineTo(chartCardX + chartCardW - 30, cy); ctx.stroke();
+            }
+
+            // نقاط المنحنى البياني المتصاعد
+            const chartAnim = easeInOutCubic(clamp01(time / 4.0));
+            const pts = [
+                { x: chartCardX + 60, y: chartCardY + chartCardH - 70 },
+                { x: chartCardX + 180, y: chartCardY + chartCardH - 140 * chartAnim },
+                { x: chartCardX + 320, y: chartCardY + chartCardH - 110 * chartAnim },
+                { x: chartCardX + 460, y: chartCardY + chartCardH - 260 * chartAnim },
+                { x: chartCardX + 590, y: chartCardY + chartCardH - 220 * chartAnim },
+                { x: chartCardX + 710, y: chartCardY + chartCardH - 380 * chartAnim } // قمة الذروة (Focal Point)
+            ];
+
+            // مساحة التدرج اللوني أسفل المنحنى
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, chartCardY + chartCardH - 50);
+            pts.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.lineTo(pts[pts.length - 1].x, chartCardY + chartCardH - 50);
+            ctx.closePath();
+
+            const areaGrad = ctx.createLinearGradient(0, chartCardY, 0, chartCardY + chartCardH);
+            areaGrad.addColorStop(0, "rgba(2, 132, 199, 0.45)");
+            areaGrad.addColorStop(1, "rgba(2, 132, 199, 0)");
+            ctx.fillStyle = areaGrad;
+            ctx.fill();
+
+            // خط المنحنى المتوهج
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+                ctx.lineTo(pts[i].x, pts[i].y);
+            }
+            ctx.strokeStyle = "#38bdf8";
+            ctx.lineWidth = 4;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.shadowColor = "#0284c7";
+            ctx.shadowBlur = 18;
+            ctx.stroke();
+            ctx.shadowColor = "transparent";
+
+            // رسم النقاط على المنحنى
+            pts.forEach((p, idx) => {
+                const isPeak = idx === pts.length - 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, isPeak ? 10 : 5, 0, Math.PI * 2);
+                ctx.fillStyle = isPeak ? "#38bdf8" : "#ffffff";
+                ctx.fill();
+                ctx.strokeStyle = "#0284c7";
+                ctx.lineWidth = isPeak ? 3.5 : 2;
+                ctx.stroke();
+
+                // حلقات النبض المشعة حول نقطة الذروة (Hand-off Focal Core)
+                if (isPeak) {
+                    const peakPulse = (time * 2.5) % 1.0;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 10 + peakPulse * 35, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(56, 189, 248, ${1 - peakPulse})`;
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+
+                    // شارة القمة الرقمية
+                    ctx.beginPath();
+                    ctx.roundRect(p.x - 75, p.y - 52, 150, 34, 8);
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+                    ctx.fill();
+                    ctx.font = "800 13px 'Plus Jakarta Sans'";
+                    ctx.fillStyle = "#0284c7";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText("PEAK: +342.8%", p.x, p.y - 35);
+                }
+            });
+
+            ctx.restore(); // استعادة اللوحة
+
+            ctx.restore(); // استعادة الكاميرا
+
+            // ==================== 4. طاقة التسليم الحركي المشعة في النهاية (Hand-off Charge Overlay) ====================
+            if (handoffFlashAlpha > 0.01) {
+                ctx.fillStyle = `rgba(2, 132, 199, ${clamp01(handoffFlashAlpha)})`;
+                ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+            }
+        }
+
+        // ============ ⚙️ الطبقة التقنية الثابتة — من هنا تحت ============
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const statusText = document.getElementById('status-text');
+        const spinner = document.getElementById('spinner');
+
+        let audioAudioEl = null;
+        let sharedAudioCtx = null;
+        let state = { currentTime: 0, isRendering: false, animationFrameId: null };
+
+        window.renderStatus = 'loading';
+
+        function logToConsole(msg, type = 'info') {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clamp01(val) { return Math.max(0, Math.min(1, val)); }
+
+        function layoutArabicParagraph(text, font, maxWidth, wordGap, lineHeight, centerY) {
+            ctx.font = font;
+            const words = text.split(' ');
+            const lines = [];
+            let currentWords = [], currentWidth = 0;
+
+            words.forEach(w => {
+                const wordWidth = ctx.measureText(w).width;
+                const testWidth = currentWidth + (currentWords.length > 0 ? wordGap : 0) + wordWidth;
+                if (testWidth > maxWidth && currentWords.length > 0) {
+                    lines.push({ words: currentWords, width: currentWidth });
+                    currentWords = []; currentWidth = 0;
+                }
+                currentWords.push({ text: w, width: wordWidth });
+                currentWidth += (currentWords.length > 1 ? wordGap : 0) + wordWidth;
+            });
+            if (currentWords.length) lines.push({ words: currentWords, width: currentWidth });
+
+            const totalHeight = lines.length * lineHeight;
+            const startY = centerY - totalHeight / 2 + lineHeight / 2;
+            const flatWords = [];
+
+            lines.forEach((line, li) => {
+                const lineY = startY + li * lineHeight;
+                let currentX = (CONFIG.width / 2) + (line.width / 2);
+                line.words.forEach(w => {
+                    const wx = currentX - w.width;
+                    flatWords.push({ text: w.text, x: wx + w.width / 2, y: lineY });
+                    currentX -= (w.width + wordGap);
+                });
+            });
+            return flatWords;
+        }
+
+        function audioBufferToWavBlob(buffer) {
+            const numOfChan = buffer.numberOfChannels;
+            const length = buffer.length * numOfChan * 2 + 44;
+            const out = new DataView(new ArrayBuffer(length));
+            let channels = [], sample, offset = 0, pos = 0;
+
+            function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+            function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+            setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+            setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+            setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+            setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164);
+            setUint32(length - pos - 4);
+
+            for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+
+            while (offset < buffer.length) {
+                for (let i = 0; i < numOfChan; i++) {
+                    sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+                    out.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+
+            return new Blob([out], { type: "audio/wav" });
+        }
+
+        function getSharedAudioContext() {
+            if (!sharedAudioCtx) sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            return sharedAudioCtx;
+        }
+
+        async function fetchAndDecodeAudio(url) {
+            if (!/^https:\/\//i.test(url)) throw new Error(`رابط صوت غير آمن: ${url}`);
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`فشل جلب الصوت: ${url}`);
+            const arrayBuf = await res.arrayBuffer();
+            if (arrayBuf.byteLength < 1024) throw new Error(`حجم الملف صغير جداً: ${url}`);
+            return getSharedAudioContext().decodeAudioData(arrayBuf);
+        }
+
+        function concatenateAudioBuffers(buffers) {
+            if (!buffers || buffers.length === 0) throw new Error("مفيش أي AudioBuffer لتلزيقه");
+            const sampleRate = buffers[0].sampleRate;
+            const channelsCount = buffers[0].numberOfChannels;
+            const totalSamples = buffers.reduce((sum, b) => sum + b.length, 0);
+            const combined = getSharedAudioContext().createBuffer(channelsCount, totalSamples, sampleRate);
+
+            let sampleOffset = 0, timeOffset = 0.0;
+            const segments = [];
+
+            for (const buf of buffers) {
+                for (let ch = 0; ch < channelsCount; ch++) {
+                    combined.getChannelData(ch).set(buf.getChannelData(ch), sampleOffset);
+                }
+                const duration = buf.duration;
+                segments.push({ start: timeOffset, end: timeOffset + duration, duration });
+                sampleOffset += buf.length;
+                timeOffset += duration;
+            }
+            return { buffer: combined, segments };
+        }
+
+        async function createBrollFrameSampler(url, options = {}) {
+            const videoEl = document.createElement('video');
+            videoEl.crossOrigin = 'anonymous'; videoEl.muted = true;
+            videoEl.playsInline = true; videoEl.preload = 'auto'; videoEl.src = url;
+
+            await new Promise((resolve, reject) => {
+                videoEl.onloadeddata = resolve;
+                videoEl.onerror = () => reject(new Error(`فشل تحميل فيديو B-roll: ${url}`));
+            });
+
+            const targetW = options.width || videoEl.videoWidth;
+            const targetH = options.height || videoEl.videoHeight;
+            const fit = options.fit || 'cover';
+            const sampleCanvas = document.createElement('canvas');
+            sampleCanvas.width = targetW; sampleCanvas.height = targetH;
+            const sampleCtx = sampleCanvas.getContext('2d');
+
+            sampleCtx.drawImage(videoEl, 0, 0, 1, 1);
+            let corsOk = true;
+            try { sampleCtx.getImageData(0, 0, 1, 1); } catch (e) { corsOk = false; }
+
+            if (!corsOk && options.posterFallbackUrl) {
+                const posterImg = new Image(); posterImg.crossOrigin = 'anonymous';
+                await new Promise((resolve, reject) => {
+                    posterImg.onload = resolve;
+                    posterImg.onerror = () => reject(new Error(`فشل تحميل صورة fallback: ${options.posterFallbackUrl}`));
+                    posterImg.src = options.posterFallbackUrl;
+                });
+                return {
+                    videoEl: null, isFallbackImage: true,
+                    async getFrameAt(time) {
+                        const zoom = 1.0 + Math.min(time / 10, 1) * 0.06;
+                        const iw = posterImg.naturalWidth, ih = posterImg.naturalHeight;
+                        const scale = Math.max(targetW / iw, targetH / ih) * zoom;
+                        const dw = iw * scale, dh = ih * scale;
+                        const dx = (targetW - dw) / 2, dy = (targetH - dh) / 2;
+                        sampleCtx.clearRect(0, 0, targetW, targetH);
+                        sampleCtx.drawImage(posterImg, dx, dy, dw, dh);
+                        return sampleCanvas;
+                    }
+                };
+            }
+
+            if (!corsOk) throw new Error(`فيديو B-roll لا يدعم CORS: ${url}`);
+            const useFrameCallback = typeof videoEl.requestVideoFrameCallback === 'function';
+
+            return {
+                videoEl,
+                async getFrameAt(time) {
+                    const seekTime = Math.min(Math.max(time, 0), Math.max(videoEl.duration - 0.01, 0));
+                    await new Promise((resolve, reject) => {
+                        const timeoutId = setTimeout(() => reject(new Error(`تأخر الفريم عند ${seekTime}s: ${url}`)), 5000);
+                        if (useFrameCallback) {
+                            videoEl.requestVideoFrameCallback(() => { clearTimeout(timeoutId); resolve(); });
+                        } else {
+                            videoEl.onseeked = () => { clearTimeout(timeoutId); resolve(); };
+                        }
+                        videoEl.currentTime = seekTime;
+                    });
+
+                    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+                    const scale = fit === 'contain' ? Math.min(targetW / vw, targetH / vh) : Math.max(targetW / vw, targetH / vh);
+                    const dw = vw * scale, dh = vh * scale;
+                    const dx = (targetW - dw) / 2, dy = (targetH - dh) / 2;
+
+                    sampleCtx.clearRect(0, 0, targetW, targetH);
+                    sampleCtx.drawImage(videoEl, dx, dy, dw, dh);
+                    return sampleCanvas;
+                }
+            };
+        }
+
+        function startPreviewLoop() {
+            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+            if (audioAudioEl) {
+                audioAudioEl.currentTime = 0;
+                audioAudioEl.play().catch(e => logToConsole("تنبيه الصوت: " + e.message, 'warn'));
+            }
+
+            const startTime = performance.now();
+            async function loop(now) {
+                if (state.isRendering) return;
+                const elapsed = (now - startTime) / 1000;
+                const currTime = audioAudioEl ? audioAudioEl.currentTime : (elapsed % CONFIG.duration);
+                state.currentTime = currTime;
+                await drawSceneAtTime(currTime);
+
+                if (currTime < CONFIG.duration) {
+                    state.animationFrameId = requestAnimationFrame(loop);
+                } else {
+                    statusText.textContent = "جاهز للعرض والتصدير ✓";
+                    spinner.style.display = 'none';
+                }
+            }
+            state.animationFrameId = requestAnimationFrame(loop);
+        }
+
+        const OFOQ_FRAME_FORMAT = 'image/png';
+        window.__ofoqTotalFrames = 0;
+        window.__ofoqFps = 0;
+        window.__ofoqOutputFilename = '';
+        window.__ofoqAudioWavBase64 = null;
+
+        async function __ofoqGetFrameBatch(startFrame, count) {
+            const frames = [];
+            for (let i = 0; i < count; i++) {
+                const frameIndex = startFrame + i;
+                if (frameIndex >= window.__ofoqTotalFrames) break;
+                const timestamp = frameIndex / window.__ofoqFps;
+                await drawSceneAtTime(timestamp);
+                const dataUrl = canvas.toDataURL(OFOQ_FRAME_FORMAT);
+                frames.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+            }
+            return frames;
+        }
+        window.__ofoqGetFrameBatch = __ofoqGetFrameBatch;
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
+        }
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            statusText.textContent = "جاري عرض المعاينة...";
+            spinner.style.display = 'inline-block';
+            startPreviewLoop();
+        });
+
+        document.getElementById('btn-toggle-console').addEventListener('click', () => {
+            const modal = document.getElementById('console-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        });
+
+        document.getElementById('btn-close-console').addEventListener('click', () => {
+            document.getElementById('console-modal').style.display = 'none';
+        });
+
+        document.getElementById('btn-render-start').addEventListener('click', () => {
+            logToConsole("التصدير الفعلي يتم عبر render-runner.js (Node + ffmpeg).", 'warn');
+        });
+
+        async function init() {
+            try {
+                await prepareIdentity();
+                canvas.width = CONFIG.width;
+                canvas.height = CONFIG.height;
+                window.__ofoqFps = CONFIG.fps;
+                window.__ofoqTotalFrames = Math.ceil(CONFIG.duration * CONFIG.fps);
+                window.__ofoqOutputFilename = `${OUTPUT_FILENAME}.mp4`;
+
+                if (audioBuffer) {
+                    const wavBlob = audioBufferToWavBlob(audioBuffer);
+                    audioAudioEl = new Audio(URL.createObjectURL(wavBlob));
+                    window.__ofoqAudioWavBase64 = arrayBufferToBase64(await wavBlob.arrayBuffer());
+                }
+
+                statusText.textContent = "جاهز للعرض والتصدير ✓";
+                spinner.style.display = 'none';
+                window.renderStatus = 'ready';
+                await drawSceneAtTime(0);
+            } catch (err) {
+                logToConsole("خطأ أثناء التهيئة: " + err.message, 'error');
+                statusText.textContent = "حدث خطأ أثناء التحميل";
+                window.__renderError = err.message;
+                window.renderStatus = 'error';
+            }
+        }
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
