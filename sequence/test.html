@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master CRM Suite - Complete Bottom-Up Elevation Simulation</title>
+
+    <!-- FONT IMPORTS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: #f5f5f5; color: #0a0f1d;
+            font-family: 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; min-height: 100dvh; overflow: hidden; padding: 10px;
+        }
+        #viewport {
+            position: relative;
+            max-height: 86vh;
+            max-width: 94vw;
+            width: auto;
+            height: auto;
+            background: #f5f5f5;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.05), 0 0 1px 1px rgba(0, 0, 0, 0.02);
+            border-radius: 18px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+        #hud {
+            position: absolute; top: 16px; right: 16px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(14px);
+            color: #0a0f1d; padding: 6px 14px; border-radius: 30px;
+            font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.05); z-index: 10;
+        }
+        .spinner {
+            width: 12px; height: 12px; border: 2px solid #e5e5ea;
+            border-top: 2px solid #0a0f1d; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #controls-overlay {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10; background: rgba(255, 255, 255, 0.92);
+            padding: 6px 12px; border-radius: 40px; backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        .btn {
+            font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 14px;
+            border-radius: 20px; border: none; cursor: pointer; display: flex;
+            align-items: center; gap: 6px; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-preview { background: #f1f5f9; color: #0f172a; }
+        .btn-preview:hover { background: #e2e8f0; }
+        .btn-render { background: #1a73e8; color: #ffffff; }
+        .btn-render:hover { background: #1557b0; }
+        #console-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 680px; max-width: 92vw; height: 400px; background: #ffffff;
+            border: 1px solid #e5e5ea; border-radius: 14px; box-shadow: 0 30px 80px rgba(0,0,0,0.15);
+            z-index: 100; display: none; flex-direction: column; overflow: hidden;
+        }
+        #console-header {
+            background: #f8fafc; padding: 12px 18px; display: flex; color: #0f172a;
+            justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        #console-output {
+            flex: 1; padding: 14px; overflow-y: auto; font-family: monospace;
+            font-size: 12px; color: #334155; background: #ffffff; line-height: 1.6;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-info { color: #1a73e8; }
+        .log-warn { color: #d97706; }
+        .log-error { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div id="viewport">
+        <canvas id="videoCanvas"></canvas>
+        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري تحميل أيقونات المنظومة...</span></div>
+        <div id="controls-overlay">
+            <button class="btn btn-preview" id="btn-replay">إعادة العرض</button>
+            <button class="btn btn-toggle-console" id="btn-toggle-console">السجل البرمجي</button>
+            <button class="btn btn-render" id="btn-render-start">تصدير المشهد</button>
+        </div>
+    </div>
+
+    <div id="console-modal">
+        <div id="console-header">
+            <span>سجل النظام</span>
+            <button class="btn btn-preview" id="btn-close-console" style="color:#fff; background:#ef4444; border:none; padding:4px 14px;">إغلاق</button>
+        </div>
+        <div id="console-output"></div>
+    </div>
+
+    <script type="module">
+        // ============ IDENTITY LAYER ============
+        const CONFIG = {
+            fps: 30,
+            width: 1920,
+            height: 1080,
+            duration: 30.0
+        };
+        const OUTPUT_FILENAME = 'master_crm_bottom_up_suite';
+        let audioBuffer = null;
+
+        function clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, v)); }
+        
+        function springOvershoot(t, tension = 1.85) {
+            t = clamp(t);
+            return 1 + (tension + 1) * Math.pow(t - 1, 3) + tension * Math.pow(t - 1, 2);
+        }
+
+        function easeOutExpo(t) {
+            t = clamp(t);
+            return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+        }
+
+        function easeInOutCubic(t) { 
+            t = clamp(t);
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; 
+        }
+
+        // ============ ICONIFY NATIVE LOGOS LOADER ============
+        const appIcons = {
+            googleCalendar: null,
+            microsoftExcel: null,
+            googleGmail: null
+        };
+
+        const ICONIFY_DATA_URIS = {
+            googleCalendar: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+                  <path fill="#ffffff" d="M148 24H44a20 20 0 0 0-20 20v104a20 20 0 0 0 20 20h104a20 20 0 0 0 20-20V44a20 20 0 0 0-20-20Z"/>
+                  <path fill="#4285F4" d="M44 24h104c11.046 0 20 8.954 20 20v14H24V44c0-11.046 8.954-20 20-20Z"/>
+                  <path fill="#EA4335" d="M168 44v32H24V44c0-11.046 8.954-20 20-20h104c11.046 0 20 8.954 20 20Z"/>
+                  <path fill="#34A853" d="M168 148c0 11.046-8.954 20-20 20H44c-11.046 0-20-8.954-20-20v-30h144v30Z"/>
+                  <path fill="#FBBC04" d="M24 118v30c0 11.046 8.954 20 20 20h14V118H24Z"/>
+                  <text x="96" y="132" fill="#1A73E8" font-family="'Plus Jakarta Sans', sans-serif" font-size="76" font-weight="800" text-anchor="middle">31</text>
+                </svg>
+            `),
+            microsoftExcel: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <path fill="#107c41" d="M37 6H17a2 2 0 0 0-2 2v32a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z"/>
+                  <path fill="#0e5c2f" d="M37 6H27v36h10a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2z"/>
+                  <path fill="#33c481" d="M27 12H19v24h8a2 2 0 0 0 2-2V14a2 2 0 0 0-2-2z"/>
+                  <rect x="5" y="10" width="18" height="28" rx="2" fill="#107c41"/>
+                  <path fill="#ffffff" d="M9.8 17.5h3l2.2 4.6 2.2-4.6h3l-3.5 5.5 3.7 6.5h-3.1l-2.4-4.8-2.5 4.8H9.4l3.8-6.5-3.4-5.5z"/>
+                </svg>
+            `),
+            googleGmail: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.272H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L12 9.545l8.073-6.052C21.69 2.28 24 3.434 24 5.457z"/>
+                  <path fill="#34A853" d="M0 19.366c0 .904.732 1.636 1.636 1.636h3.819V11.73L0 7.82v11.546z"/>
+                  <path fill="#EA4335" d="M18.545 11.73v9.272h3.819c.904 0 1.636-.732 1.636-1.636V7.82l-5.455 3.91z"/>
+                  <path fill="#FBBC04" d="M20.073 3.493L12 9.545 3.927 3.493C2.309 2.279 0 3.434 0 5.457V7.82l12 9 12-9V5.457c0-2.023-2.309-3.178-3.927-1.964z"/>
+                  <path fill="#C5221F" d="M18.545 11.73L24 7.82V5.457c0-2.023-2.309-3.178-3.927-1.964L12 9.545l6.545 2.185z"/>
+                </svg>
+            `)
+        };
+
+        function fetchIconifyIcon(iconKey, apiPath) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve(img);
+                img.onerror = () => {
+                    const fallbackImg = new Image();
+                    fallbackImg.onload = () => resolve(fallbackImg);
+                    fallbackImg.src = ICONIFY_DATA_URIS[iconKey];
+                };
+                img.src = `https://api.iconify.design/${apiPath}.svg`;
+            });
+        }
+
+        // 24x24 Vector Paths
+        const SVG_PATHS = {
+            menu: new Path2D("M3 12h18M3 6h18M3 18h18"),
+            search: new Path2D("M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"),
+            settings: new Path2D("M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"),
+            chevronRight: new Path2D("M9 6l6 6-6 6"),
+            chevronLeft: new Path2D("M15 18l-6-6 6-6"),
+            chevronDown: new Path2D("M6 9l6 6 6-6"),
+            plus: new Path2D("M12 5v14M5 12h14"),
+            check: new Path2D("M20 6L9 17l-5-5"),
+            gridApps: new Path2D("M4 4h4v4H4z M10 4h4v4H4z M16 4h4v4H4z M4 10h4v4H4z M10 10h4v4H4z M16 10h4v4H4z M4 16h4v4H4z M10 16h4v4H4z M16 16h4v4H4z"),
+            save: new Path2D("M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM17 21v-8H7v8M7 3v5h8"),
+            undo: new Path2D("M3 7v6h6M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"),
+            redo: new Path2D("M21 7v6h-6M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"),
+            sigma: new Path2D("M18 4H6l7 8-7 8h12"),
+            filter: new Path2D("M22 3H2l8 9.46V19l4 2v-8.54L22 3z"),
+            sparkle: new Path2D("M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"),
+            star: new Path2D("M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"),
+            trash: new Path2D("M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"),
+            replyArrow: new Path2D("M3 10h10a5 5 0 0 1 5 5v2m-15-7l4-4m-4 4l4 4"),
+            replyAll: new Path2D("M7 10h8a5 5 0 0 1 5 5v2M3 10l4-4M3 10l4 4M7 6l4-4M7 14l4 4"),
+            forward: new Path2D("M21 10H11a5 5 0 0 0-5 5v2m15-7l-4-4m4 4l-4 4")
+        };
+
+        function drawNativeSVG(ctx, path, x, y, size = 20, color = '#1f1f1f', lineWidth = 2.0, isFill = false) {
+            ctx.save();
+            ctx.translate(x, y);
+            const scale = size / 24;
+            ctx.scale(scale, scale);
+            ctx.translate(-12, -12);
+            
+            if (isFill) {
+                ctx.fillStyle = color;
+                ctx.fill(path);
+            } else {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth / scale;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke(path);
+            }
+            ctx.restore();
+        }
+
+        async function prepareIdentity() {
+            await document.fonts.ready;
+            const [gCal, mExcel, gGmail] = await Promise.all([
+                fetchIconifyIcon('googleCalendar', 'logos:google-calendar'),
+                fetchIconifyIcon('microsoftExcel', 'vscode-icons:file-type-excel2'),
+                fetchIconifyIcon('googleGmail', 'logos:google-gmail')
+            ]);
+            appIcons.googleCalendar = gCal;
+            appIcons.microsoftExcel = mExcel;
+            appIcons.googleGmail = gGmail;
+        }
+
+        // ============ MAIN RENDERING ENGINE ============
+        async function drawSceneAtTime(time) {
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // 1. Studio Background (100% Pure #f5f5f5 - NO GRID)
+            ctx.fillStyle = '#f5f5f5';
+            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // Ambient Center Radial Light
+            const centerGlow = ctx.createRadialGradient(
+                CONFIG.width / 2, CONFIG.height / 2, 80,
+                CONFIG.width / 2, CONFIG.height / 2, CONFIG.width * 0.85
+            );
+            centerGlow.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+            centerGlow.addColorStop(1, 'rgba(245, 245, 245, 0)');
+            ctx.fillStyle = centerGlow;
+            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+            const winW = 1540;
+            const winH = 880;
+            const winX = CONFIG.width / 2;
+            const winY = CONFIG.height / 2;
+
+            // =========================================================================
+            // 1. TYPOGRAPHIC INTRO 1: CALENDAR [0.0s - 2.0s]
+            // =========================================================================
+            if (time < 2.2) {
+                const typoAlpha = time < 1.4 ? 1.0 : clamp(1.0 - (time - 1.4) / 0.5);
+                ctx.save();
+                ctx.globalAlpha = typoAlpha;
+
+                const words1 = [
+                    { text: "تنظيم", start: 0.05, dur: 0.38, tension: 1.6 },
+                    { text: "المواعيد", start: 0.22, dur: 0.34, tension: 1.7 },
+                    { text: "وحجز", start: 0.36, dur: 0.30, tension: 1.8 },
+                    { text: "الجلسات", start: 0.48, dur: 0.26, tension: 1.9 },
+                    { text: "الذكية", start: 0.58, dur: 0.24, tension: 2.0 },
+                    { text: "تلقائياً", start: 0.67, dur: 0.22, tension: 2.1 }
+                ];
+
+                ctx.font = "900 64px 'IBM Plex Sans Arabic'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                const wordGap = 26;
+                const wordWidths = words1.map(w => ctx.measureText(w.text).width);
+                const totalWidth = wordWidths.reduce((a, b) => a + b, 0) + (words1.length - 1) * wordGap;
+                let currentX = (CONFIG.width / 2) + (totalWidth / 2);
+
+                words1.forEach((w) => {
+                    const wWidth = ctx.measureText(w.text).width;
+                    const wCenter = currentX - wWidth / 2;
+                    currentX -= (wWidth + wordGap);
+
+                    const elapsed = time - w.start;
+                    if (elapsed > 0) {
+                        const progress = clamp(elapsed / w.dur);
+                        const snap = easeOutExpo(progress);
+                        const bounce = Math.sin(progress * Math.PI) * 0.05;
+                        const finalP = clamp(snap + bounce);
+                        const slideY = (1 - finalP) * 55;
+                        const wordAlpha = clamp(elapsed / 0.16);
+
+                        ctx.save();
+                        ctx.globalAlpha = typoAlpha * wordAlpha;
+                        ctx.translate(wCenter, CONFIG.height / 2 + slideY);
+                        ctx.fillStyle = '#0a0f1d';
+                        ctx.fillText(w.text, 0, 0);
+                        ctx.restore();
+                    }
+                });
+                ctx.restore();
+                if (time < 1.45) return;
+            }
+
+            // =========================================================================
+            // 2. SCENE 1: GOOGLE CALENDAR (BOTTOM-UP ELEVATION) [1.8s - 9.6s]
+            // =========================================================================
+            if (time >= 1.8 && time < 9.8) {
+                // Rising from Bottom (+650px to 0px)
+                const calEnterProg = springOvershoot(clamp((time - 1.8) / 1.1), 1.85);
+                const calSlideY = (1 - calEnterProg) * 650;
+                const calScale = 0.94 + 0.06 * calEnterProg;
+
+                let calExitOffset = 0;
+                if (time >= 8.8) {
+                    const exitP = easeInOutCubic((time - 8.8) / 0.8);
+                    calExitOffset = -exitP * 850;
+                }
+
+                ctx.save();
+                ctx.translate(winX, winY + calSlideY + calExitOffset);
+                ctx.scale(calScale, calScale);
+
+                ctx.beginPath(); ctx.roundRect(-winW / 2, -winH / 2, winW, winH, 20); ctx.fillStyle = '#ffffff'; ctx.fill();
+                const edgeGrad1 = ctx.createLinearGradient(-winW / 2, -winH / 2, winW / 2, winH / 2);
+                edgeGrad1.addColorStop(0, '#ffffff'); edgeGrad1.addColorStop(0.3, '#e5e5ea'); edgeGrad1.addColorStop(0.7, '#d4d4d8'); edgeGrad1.addColorStop(1, '#e5e5ea');
+                ctx.strokeStyle = edgeGrad1; ctx.lineWidth = 4.0; ctx.stroke();
+
+                ctx.save();
+                ctx.beginPath(); ctx.roundRect(-winW / 2 + 2, -winH / 2 + 2, winW - 4, winH - 4, 18); ctx.clip();
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(-winW / 2, -winH / 2, winW, winH);
+
+                // Chrome Bar
+                const chromeBarH = 42;
+                ctx.fillStyle = '#F1F3F4'; ctx.fillRect(-winW / 2, -winH / 2, winW, chromeBarH);
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, -winH / 2 + chromeBarH); ctx.lineTo(winW / 2, -winH / 2 + chromeBarH); ctx.stroke();
+                const tlX = -winW / 2 + 26, tlY = -winH / 2 + chromeBarH / 2;
+                ctx.fillStyle = '#ED6A5E'; ctx.beginPath(); ctx.arc(tlX, tlY, 5.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#F5BF4F'; ctx.beginPath(); ctx.arc(tlX + 16, tlY, 5.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#62C554'; ctx.beginPath(); ctx.arc(tlX + 32, tlY, 5.5, 0, Math.PI * 2); ctx.fill();
+
+                const urlW = 520, urlH = 26;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.roundRect(-urlW / 2, -winH / 2 + 8, urlW, urlH, 13); ctx.fill();
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.font = "500 11.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5F6368';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText("calendar.google.com/calendar/u/0/r/week", 0, -winH / 2 + 21);
+
+                // Main Calendar Header (Wide Spacing)
+                const mainHeaderY = -winH / 2 + chromeBarH;
+                const mainHeaderH = 68;
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(-winW / 2, mainHeaderY, winW, mainHeaderH);
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, mainHeaderY + mainHeaderH); ctx.lineTo(winW / 2, mainHeaderY + mainHeaderH); ctx.stroke();
+
+                const hY = mainHeaderY + mainHeaderH / 2;
+                let curRightX = winW / 2 - 28;
+
+                drawNativeSVG(ctx, SVG_PATHS.menu, curRightX, hY, 22, '#5F6368', 2.0);
+                curRightX -= 44;
+
+                // Real Google Calendar Logo
+                if (appIcons.googleCalendar) {
+                    ctx.drawImage(appIcons.googleCalendar, curRightX - 18, hY - 18, 36, 36);
+                }
+                curRightX -= 36;
+
+                ctx.textAlign = 'right'; ctx.font = "800 20px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#3C4043';
+                ctx.fillText("تقويم Google", curRightX, hY + 4);
+                curRightX -= ctx.measureText("تقويم Google").width + 50;
+
+                const todayBtnW = 68, todayBtnH = 36;
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(curRightX - todayBtnW, hY - todayBtnH/2, todayBtnW, todayBtnH, 6); ctx.fill();
+                ctx.strokeStyle = '#DADCE0'; ctx.lineWidth = 1.2; ctx.stroke();
+                ctx.font = "800 13.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#3C4043';
+                ctx.textAlign = 'center'; ctx.fillText("اليوم", curRightX - todayBtnW / 2, hY + 2);
+                curRightX -= todayBtnW + 24;
+
+                drawNativeSVG(ctx, SVG_PATHS.chevronRight, curRightX, hY, 18, '#5F6368', 2.2);
+                curRightX -= 28;
+                drawNativeSVG(ctx, SVG_PATHS.chevronLeft, curRightX, hY, 18, '#5F6368', 2.2);
+                curRightX -= 34;
+
+                ctx.textAlign = 'right'; ctx.font = "800 20px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#3C4043';
+                ctx.fillText("يناير ٢٠٢٦", curRightX, hY + 3);
+
+                // Header Left Controls
+                let curLeftX = -winW / 2 + 28;
+                ctx.beginPath(); ctx.arc(curLeftX + 16, hY, 17, 0, Math.PI * 2); ctx.fillStyle = '#1A73E8'; ctx.fill();
+                ctx.font = "800 13px 'Plus Jakarta Sans'"; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.fillText("G", curLeftX + 16, hY + 1);
+                curLeftX += 54;
+                drawNativeSVG(ctx, SVG_PATHS.gridApps, curLeftX, hY, 18, '#5F6368', 1.8, true);
+                curLeftX += 40;
+                drawNativeSVG(ctx, SVG_PATHS.settings, curLeftX, hY, 20, '#5F6368', 2.0);
+                curLeftX += 40;
+                drawNativeSVG(ctx, SVG_PATHS.search, curLeftX, hY, 20, '#5F6368', 2.0);
+                curLeftX += 45;
+
+                const viewW = 95, viewH = 36;
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(curLeftX, hY - viewH/2, viewW, viewH, 6); ctx.fill();
+                ctx.strokeStyle = '#DADCE0'; ctx.lineWidth = 1.2; ctx.stroke();
+                ctx.font = "800 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#3C4043';
+                ctx.textAlign = 'right'; ctx.fillText("أسبوع", curLeftX + viewW - 14, hY + 2);
+                drawNativeSVG(ctx, SVG_PATHS.chevronDown, curLeftX + 22, hY + 1, 14, '#5F6368', 2.0);
+
+                // Sidebar
+                const sidebarW = 270;
+                const contentY = mainHeaderY + mainHeaderH;
+                const contentH = winH - (chromeBarH + mainHeaderH);
+
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(winW / 2 - sidebarW, contentY, sidebarW, contentH);
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(winW / 2 - sidebarW, contentY); ctx.lineTo(winW / 2 - sidebarW, contentY + contentH); ctx.stroke();
+
+                const createBtnY = contentY + 22;
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(winW / 2 - sidebarW + 20, createBtnY, 142, 48, 24); ctx.fill();
+                ctx.strokeStyle = '#DADCE0'; ctx.lineWidth = 1.2; ctx.stroke();
+                drawNativeSVG(ctx, SVG_PATHS.plus, winW / 2 - sidebarW + 48, createBtnY + 24, 22, '#1A73E8', 2.8);
+                ctx.font = "800 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#3C4043';
+                ctx.textAlign = 'right'; ctx.fillText("إنشاء", winW / 2 - sidebarW + 120, createBtnY + 28);
+
+                const miniCalY = createBtnY + 70;
+                ctx.textAlign = 'right'; ctx.font = "800 14px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#3C4043';
+                ctx.fillText("يناير ٢٠٢٦", winW / 2 - 28, miniCalY + 12);
+                const miniDays = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
+                const miniColW = (sidebarW - 40) / 7;
+                ctx.font = "700 11px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#70757A'; ctx.textAlign = 'center';
+                miniDays.forEach((d, idx) => { ctx.fillText(d, winW / 2 - 20 - idx * miniColW - miniColW / 2, miniCalY + 34); });
+                const miniDates = [
+                    ['', '', '1', '2', '3', '4', '5'],
+                    ['6', '7', '8', '9', '10', '11', '12'],
+                    ['13', '14', '15', '16', '17', '18', '19'],
+                    ['20', '21', '22', '23', '24', '25', '26'],
+                    ['27', '28', '29', '30', '31', '', '']
+                ];
+                miniDates.forEach((r, ri) => {
+                    r.forEach((num, ci) => {
+                        if (num !== '') {
+                            const mx = winW / 2 - 20 - ci * miniColW - miniColW / 2;
+                            const my = miniCalY + 54 + ri * 22;
+                            if (num === '20') {
+                                ctx.fillStyle = '#1A73E8'; ctx.beginPath(); ctx.arc(mx, my - 3, 10, 0, Math.PI * 2); ctx.fill();
+                                ctx.font = "700 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#ffffff';
+                            } else {
+                                ctx.font = "500 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#3C4043';
+                            }
+                            ctx.fillText(num, mx, my);
+                        }
+                    });
+                });
+
+                // Main 5-Day Grid
+                const mainGridW = winW - sidebarW;
+                const mainGridX = -winW / 2;
+                const timeColW = 65;
+                const dayColW = (mainGridW - timeColW) / 5;
+
+                const dayHeaderH = 68;
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(mainGridX, contentY, mainGridW, dayHeaderH);
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(mainGridX, contentY + dayHeaderH); ctx.lineTo(mainGridX + mainGridW, contentY + dayHeaderH); ctx.stroke();
+                ctx.font = "600 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#70757A';
+                ctx.textAlign = 'center'; ctx.fillText("GMT+2", mainGridX + mainGridW - timeColW / 2, contentY + 42);
+
+                const weekDays = [
+                    { name: "الأحد", num: "19", isToday: false },
+                    { name: "الاثنين", num: "20", isToday: true },
+                    { name: "الثلاثاء", num: "21", isToday: false },
+                    { name: "الأربعاء", num: "22", isToday: false },
+                    { name: "الخميس", num: "23", isToday: false }
+                ];
+                weekDays.forEach((wd, idx) => {
+                    const wx = mainGridX + mainGridW - timeColW - idx * dayColW - dayColW / 2;
+                    ctx.font = "700 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = wd.isToday ? '#1A73E8' : '#70757A';
+                    ctx.textAlign = 'center'; ctx.fillText(wd.name, wx, contentY + 24);
+                    if (wd.isToday) {
+                        ctx.fillStyle = '#1A73E8'; ctx.beginPath(); ctx.arc(wx, contentY + 46, 16, 0, Math.PI * 2); ctx.fill();
+                        ctx.font = "800 15px 'Plus Jakarta Sans'"; ctx.fillStyle = '#ffffff';
+                        ctx.fillText(wd.num, wx, contentY + 51);
+                    } else {
+                        ctx.font = "700 16px 'Plus Jakarta Sans'"; ctx.fillStyle = '#3C4043';
+                        ctx.fillText(wd.num, wx, contentY + 51);
+                    }
+                });
+
+                const gridBodyY = contentY + dayHeaderH;
+                const hourRowH = 58;
+                const hours = ['٨ ص', '٩ ص', '١٠ ص', '١١ ص', '١٢ م', '١ م', '٢ م', '٣ م', '٤ م', '٥ م'];
+
+                hours.forEach((hr, hi) => {
+                    const hy = gridBodyY + hi * hourRowH;
+                    ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#70757A';
+                    ctx.textAlign = 'center'; ctx.fillText(hr, mainGridX + mainGridW - timeColW / 2, hy + 6);
+                    ctx.strokeStyle = '#F1F3F4'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(mainGridX, hy); ctx.lineTo(mainGridX + mainGridW - timeColW, hy); ctx.stroke();
+                });
+
+                for (let i = 0; i <= 5; i++) {
+                    const vx = mainGridX + mainGridW - timeColW - i * dayColW;
+                    ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(vx, contentY); ctx.lineTo(vx, contentY + contentH); ctx.stroke();
+                }
+
+                // Staggered Event Stream
+                function drawDesktopEvent(dayIndex, startHourOffset, durationHours, title, subtext, color, timeDelay) {
+                    const elapsed = time - timeDelay;
+                    if (elapsed <= 0) return;
+                    const p = springOvershoot(clamp(elapsed / 0.52), 1.85);
+                    const evW = dayColW - 8;
+                    const evH = durationHours * hourRowH - 4;
+                    const evX = mainGridX + mainGridW - timeColW - (dayIndex + 1) * dayColW + 4;
+                    const evY = gridBodyY + startHourOffset * hourRowH + 2;
+
+                    ctx.save();
+                    const slideOffset = (1 - p) * 12;
+                    ctx.translate(evX + evW / 2, evY + evH / 2 + slideOffset);
+                    ctx.scale(p, p);
+                    ctx.fillStyle = color;
+                    ctx.beginPath(); ctx.roundRect(-evW / 2, -evH / 2, evW, evH, 6); ctx.fill();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
+                    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+                    ctx.font = "800 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff';
+                    ctx.fillText(title, evW / 2 - 8, -evH / 2 + 8);
+                    if (subtext && evH > 40) {
+                        ctx.font = "600 11.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                        ctx.fillText(subtext, evW / 2 - 8, -evH / 2 + 26);
+                    }
+                    ctx.restore();
+                }
+
+                drawDesktopEvent(0, 1.5, 2.0, "تجهيز خطة إطلاق الموقع", "مراجعة المتطلبات مع الفريق", "#5C6BC0", 2.2);
+                drawDesktopEvent(0, 4.5, 1.5, "متابعة حملات التسويق", "تحليل معدلات النقر", "#039BE5", 2.6);
+                drawDesktopEvent(1, 0.5, 1.5, "جلسة استشارية أولى", "تأهيل العميل بالذكاء الاصطناعي", "#039BE5", 3.0);
+                drawDesktopEvent(1, 2.5, 2.5, "اجتماع عميل VIP - إغلاق الصفقة", "قاعة الاجتماعات الرئيسية (أونلاين)", "#1A73E8", 3.6);
+                drawDesktopEvent(1, 6.0, 1.5, "افتتاح الفرع الجديد", "حضور رسمي مع الشركاء", "#34A853", 4.2);
+                drawDesktopEvent(2, 0.0, 2.0, "رحلة عمل رسمية", "مطار القاهرة الدولي", "#1A73E8", 4.6);
+                drawDesktopEvent(2, 3.0, 1.5, "تجهيز ورشة عمل CRM", "تدريب فريق المبيعات", "#5C6BC0", 5.0);
+                drawDesktopEvent(2, 5.0, 3.0, "استراتيجية نمو الحسابات", "أتمتة المحتوى والردود", "#1A73E8", 5.4);
+                drawDesktopEvent(3, 1.0, 1.8, "متابعة تقارير الأداء", "مزامنة بيانات إكسيل وجيميل", "#039BE5", 5.8);
+                drawDesktopEvent(3, 4.0, 1.2, "غداء عمل مع الشركاء", "مطعم الفور سيزونز", "#34A853", 6.2);
+                drawDesktopEvent(4, 2.0, 2.0, "اعتماد خطة الشهر القادم", "تقييم العائد على الاستثمار", "#1A73E8", 6.6);
+
+                // Current Time Line
+                const curTimeY = gridBodyY + 4.5 * hourRowH;
+                const todayColX = mainGridX + mainGridW - timeColW - 1 * dayColW;
+                const pulseR = 4.5 + Math.sin(time * 6) * 1.0;
+                ctx.fillStyle = '#EA4335'; ctx.beginPath(); ctx.arc(todayColX, curTimeY, pulseR, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#EA4335'; ctx.lineWidth = 2.0; ctx.beginPath(); ctx.moveTo(todayColX, curTimeY); ctx.lineTo(todayColX - dayColW, curTimeY); ctx.stroke();
+
+                ctx.restore(); ctx.restore();
+            }
+
+            // =========================================================================
+            // 3. TYPOGRAPHIC INTRO 2: EXCEL [9.4s - 11.4s]
+            // =========================================================================
+            if (time >= 9.2 && time < 11.6) {
+                const typo2Alpha = time < 10.8 ? clamp((time - 9.2) / 0.45) : clamp(1.0 - (time - 10.8) / 0.55);
+                ctx.save();
+                ctx.globalAlpha = typo2Alpha;
+
+                const words2 = [
+                    { text: "مزامنة", start: 9.35, dur: 0.36, tension: 1.6 },
+                    { text: "صفقات", start: 9.52, dur: 0.32, tension: 1.7 },
+                    { text: "الـ CRM", start: 9.66, dur: 0.28, tension: 1.8 },
+                    { text: "والبيانات", start: 9.78, dur: 0.24, tension: 1.9 },
+                    { text: "المالية", start: 9.88, dur: 0.22, tension: 2.0 },
+                    { text: "لحظياً", start: 9.97, dur: 0.20, tension: 2.1 }
+                ];
+
+                ctx.font = "900 64px 'IBM Plex Sans Arabic'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                const wordGap = 26;
+                const wordWidths = words2.map(w => ctx.measureText(w.text).width);
+                const totalWidth = wordWidths.reduce((a, b) => a + b, 0) + (words2.length - 1) * wordGap;
+                let currentX = (CONFIG.width / 2) + (totalWidth / 2);
+
+                words2.forEach((w) => {
+                    const wWidth = ctx.measureText(w.text).width;
+                    const wCenter = currentX - wWidth / 2;
+                    currentX -= (wWidth + wordGap);
+
+                    const elapsed = time - w.start;
+                    if (elapsed > 0) {
+                        const progress = clamp(elapsed / w.dur);
+                        const snap = easeOutExpo(progress);
+                        const bounce = Math.sin(progress * Math.PI) * 0.05;
+                        const finalP = clamp(snap + bounce);
+                        const slideY = (1 - finalP) * 55;
+                        const wordAlpha = clamp(elapsed / 0.16);
+
+                        ctx.save();
+                        ctx.globalAlpha = typo2Alpha * wordAlpha;
+                        ctx.translate(wCenter, CONFIG.height / 2 + slideY);
+                        ctx.fillStyle = '#0a0f1d';
+                        ctx.fillText(w.text, 0, 0);
+                        ctx.restore();
+                    }
+                });
+                ctx.restore();
+            }
+
+            // =========================================================================
+            // 4. SCENE 2: MICROSOFT EXCEL 365 (BOTTOM-UP ELEVATION) [11.2s - 19.6s]
+            // =========================================================================
+            if (time >= 11.2 && time < 19.8) {
+                // Rising from Bottom (+650px to 0px)
+                const excelEnterProg = springOvershoot(clamp((time - 11.2) / 1.1), 1.85);
+                const excelSlideY = (1 - excelEnterProg) * 650;
+                const excelScale = 0.94 + 0.06 * excelEnterProg;
+
+                let excelExitOffset = 0;
+                if (time >= 18.8) {
+                    const exitP = easeInOutCubic((time - 18.8) / 0.8);
+                    excelExitOffset = -exitP * 850;
+                }
+
+                ctx.save();
+                ctx.translate(winX, winY + excelSlideY + excelExitOffset);
+                ctx.scale(excelScale, excelScale);
+
+                ctx.beginPath(); ctx.roundRect(-winW / 2, -winH / 2, winW, winH, 16); ctx.fillStyle = '#ffffff'; ctx.fill();
+                const edgeGrad2 = ctx.createLinearGradient(-winW / 2, -winH / 2, winW / 2, winH / 2);
+                edgeGrad2.addColorStop(0, '#ffffff'); edgeGrad2.addColorStop(0.3, '#e5e5ea'); edgeGrad2.addColorStop(0.7, '#d4d4d8'); edgeGrad2.addColorStop(1, '#e5e5ea');
+                ctx.strokeStyle = edgeGrad2; ctx.lineWidth = 4.0; ctx.stroke();
+
+                ctx.save();
+                ctx.beginPath(); ctx.roundRect(-winW / 2 + 2, -winH / 2 + 2, winW - 4, winH - 4, 14); ctx.clip();
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(-winW / 2, -winH / 2, winW, winH);
+
+                // Title Bar
+                const titleBarH = 46;
+                ctx.fillStyle = '#107C41'; ctx.fillRect(-winW / 2, -winH / 2, winW, titleBarH);
+                const tY = -winH / 2 + titleBarH / 2;
+
+                ctx.fillStyle = '#0E5C2F'; ctx.beginPath(); ctx.roundRect(winW / 2 - 130, tY - 12, 110, 24, 12); ctx.fill();
+                ctx.fillStyle = '#107C41'; ctx.beginPath(); ctx.arc(winW / 2 - 32, tY, 9, 0, Math.PI * 2); ctx.fill();
+                ctx.font = "700 11px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'right'; ctx.fillText("حفظ تلقائي", winW / 2 - 50, tY + 4);
+
+                drawNativeSVG(ctx, SVG_PATHS.save, winW / 2 - 150, tY, 16, '#ffffff', 2.0);
+                drawNativeSVG(ctx, SVG_PATHS.undo, winW / 2 - 176, tY, 16, '#ffffff', 2.0);
+                drawNativeSVG(ctx, SVG_PATHS.redo, winW / 2 - 202, tY, 16, '#ffffff', 2.0);
+
+                if (appIcons.microsoftExcel) {
+                    ctx.drawImage(appIcons.microsoftExcel, winW / 2 - 245, tY - 14, 28, 28);
+                }
+
+                ctx.textAlign = 'right'; ctx.font = "700 13.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff';
+                ctx.fillText("سجل_العملاء_والمبيعات_CRM.xlsx - Excel", winW / 2 - 268, tY + 4);
+
+                const searchW = 380, searchH = 26;
+                ctx.fillStyle = '#0E5C2F'; ctx.beginPath(); ctx.roundRect(-searchW / 2, tY - 13, searchW, searchH, 6); ctx.fill();
+                drawNativeSVG(ctx, SVG_PATHS.search, -searchW / 2 + 18, tY, 14, '#B4E6C3', 2.0);
+                ctx.font = "500 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#B4E6C3';
+                ctx.textAlign = 'right'; ctx.fillText("بحث (Alt + Q)", searchW / 2 - 16, tY + 4);
+
+                const wcX = -winW / 2;
+                ctx.font = "400 12px sans-serif"; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText("✕", wcX + 24, tY); ctx.fillText("▢", wcX + 56, tY); ctx.fillText("—", wcX + 88, tY);
+
+                // Ribbon Tabs
+                const ribbonTabsY = -winH / 2 + titleBarH;
+                const ribbonTabH = 34;
+                ctx.fillStyle = '#F3F2F1'; ctx.fillRect(-winW / 2, ribbonTabsY, winW, ribbonTabH);
+                ctx.strokeStyle = '#EDEBE9'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, ribbonTabsY + ribbonTabH); ctx.lineTo(winW / 2, ribbonTabsY + ribbonTabH); ctx.stroke();
+
+                const tabs = ['ملف', 'الصفحة الرئيسية', 'إدراج', 'رسم', 'تخطيط الصفحة', 'صيغ', 'بيانات', 'مراجعة', 'عرض'];
+                let curTabX = winW / 2 - 16;
+                tabs.forEach((tab, ti) => {
+                    ctx.font = ti === 1 ? "800 13px 'IBM Plex Sans Arabic'" : "600 13px 'IBM Plex Sans Arabic'";
+                    const tabW = ctx.measureText(tab).width + 24;
+                    if (ti === 1) {
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(curTabX - tabW, ribbonTabsY, tabW, ribbonTabH + 1);
+                        ctx.fillStyle = '#107C41'; ctx.fillRect(curTabX - tabW, ribbonTabsY + ribbonTabH - 2, tabW, 3);
+                    }
+                    ctx.fillStyle = ti === 1 ? '#107C41' : '#323130';
+                    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+                    ctx.fillText(tab, curTabX - 12, ribbonTabsY + ribbonTabH / 2);
+                    curTabX -= tabW;
+                });
+
+                // Ribbon Toolbar
+                const ribbonCommandsY = ribbonTabsY + ribbonTabH;
+                const ribbonCommandsH = 74;
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(-winW / 2, ribbonCommandsY, winW, ribbonCommandsH);
+                ctx.strokeStyle = '#EDEBE9'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, ribbonCommandsY + ribbonCommandsH); ctx.lineTo(winW / 2, ribbonCommandsY + ribbonCommandsH); ctx.stroke();
+
+                let toolX = winW / 2 - 24;
+                const toolY = ribbonCommandsY + ribbonCommandsH / 2;
+
+                ctx.fillStyle = '#F3F2F1'; ctx.beginPath(); ctx.roundRect(toolX - 130, toolY - 16, 130, 32, 4); ctx.fill();
+                ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#323130'; ctx.textAlign = 'right'; ctx.fillText("IBM Plex Sans Arabic", toolX - 10, toolY + 1);
+                toolX -= 145;
+
+                ctx.fillStyle = '#F3F2F1'; ctx.beginPath(); ctx.roundRect(toolX - 45, toolY - 16, 45, 32, 4); ctx.fill();
+                ctx.font = "700 12px 'Plus Jakarta Sans'"; ctx.textAlign = 'center'; ctx.fillText("11", toolX - 22, toolY + 1);
+                toolX -= 55;
+
+                ['B', 'I', 'U'].forEach((fmt, fi) => {
+                    ctx.fillStyle = fi === 0 ? '#E1DFDD' : '#F3F2F1'; ctx.beginPath(); ctx.roundRect(toolX - 28, toolY - 14, 28, 28, 4); ctx.fill();
+                    ctx.font = fi === 0 ? "900 13px 'Plus Jakarta Sans'" : (fi === 1 ? "italic 700 13px 'Plus Jakarta Sans'" : "700 13px 'Plus Jakarta Sans'");
+                    ctx.fillStyle = '#323130'; ctx.textAlign = 'center'; ctx.fillText(fmt, toolX - 14, toolY + 1);
+                    toolX -= 34;
+                });
+                toolX -= 20;
+
+                const isAutoSumActive = time >= 16.0;
+                ctx.fillStyle = isAutoSumActive ? '#107C41' : '#DFF6DD';
+                ctx.beginPath(); ctx.roundRect(toolX - 110, toolY - 16, 110, 32, 4); ctx.fill();
+                drawNativeSVG(ctx, SVG_PATHS.sigma, toolX - 20, toolY, 16, isAutoSumActive ? '#ffffff' : '#107C41', 2.2);
+                ctx.font = "800 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = isAutoSumActive ? '#ffffff' : '#107C41';
+                ctx.textAlign = 'right'; ctx.fillText("جمع تلقائي", toolX - 35, toolY + 1);
+                toolX -= 125;
+
+                ctx.fillStyle = '#F3F2F1'; ctx.beginPath(); ctx.roundRect(toolX - 110, toolY - 16, 110, 32, 4); ctx.fill();
+                drawNativeSVG(ctx, SVG_PATHS.filter, toolX - 20, toolY, 15, '#323130', 2.0);
+                ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#323130'; ctx.textAlign = 'right'; ctx.fillText("فرز وتصفية", toolX - 35, toolY + 1);
+
+                // Formula Bar
+                const formulaBarY = ribbonCommandsY + ribbonCommandsH;
+                const formulaBarH = 34;
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(-winW / 2, formulaBarY, winW, formulaBarH);
+                ctx.strokeStyle = '#EDEBE9'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, formulaBarY + formulaBarH); ctx.lineTo(winW / 2, formulaBarY + formulaBarH); ctx.stroke();
+
+                const nameBoxW = 90;
+                ctx.fillStyle = '#F3F2F1'; ctx.beginPath(); ctx.roundRect(winW / 2 - nameBoxW - 12, formulaBarY + 4, nameBoxW, 26, 3); ctx.fill();
+                ctx.strokeStyle = '#D2D0CE'; ctx.lineWidth = 1; ctx.stroke();
+
+                let nameBoxText = "E2";
+                if (time >= 15.0 && time < 16.8) nameBoxText = "5R x 1C";
+                else if (time >= 16.8) nameBoxText = "E7";
+                ctx.font = "700 13px 'Plus Jakarta Sans'"; ctx.fillStyle = '#323130'; ctx.textAlign = 'center'; ctx.fillText(nameBoxText, winW / 2 - nameBoxW / 2 - 12, formulaBarY + 17);
+
+                const fxControlsX = winW / 2 - nameBoxW - 24;
+                ctx.font = "italic 700 15px 'Plus Jakarta Sans'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'right'; ctx.fillText("fx", fxControlsX, formulaBarY + 18);
+
+                const formulaInpW = winW - nameBoxW - 180;
+                const formulaInpX = -winW / 2 + 16;
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(formulaInpX, formulaBarY + 4, formulaInpW, 26, 3); ctx.fill();
+                ctx.strokeStyle = '#D2D0CE'; ctx.lineWidth = 1; ctx.stroke();
+
+                let currentFormulaText = "";
+                if (time >= 14.5) {
+                    const formulaProg = clamp((time - 14.5) / 1.5);
+                    const fullFormula = "=SUM(E2:E6)";
+                    currentFormulaText = fullFormula.substring(0, Math.floor(formulaProg * fullFormula.length));
+                }
+                ctx.font = "700 13.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'left'; ctx.fillText(currentFormulaText, formulaInpX + 12, formulaBarY + 17);
+
+                // Grid Worksheet
+                const gridStartY = formulaBarY + formulaBarH;
+                const colHeaderH = 26;
+                const rowNumColW = 44;
+
+                const colDefs = [
+                    { id: 'A', width: 120 },
+                    { id: 'B', width: 280 },
+                    { id: 'C', width: 140 },
+                    { id: 'D', width: 170 },
+                    { id: 'E', width: 190 },
+                    { id: 'F', width: 150 },
+                    { id: 'G', width: 150 }
+                ];
+
+                ctx.fillStyle = '#F8F9FA'; ctx.fillRect(-winW / 2, gridStartY, winW, colHeaderH);
+                ctx.strokeStyle = '#D2D0CE'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, gridStartY + colHeaderH); ctx.lineTo(winW / 2, gridStartY + colHeaderH); ctx.stroke();
+
+                ctx.fillStyle = '#E1DFDD'; ctx.fillRect(winW / 2 - rowNumColW, gridStartY, rowNumColW, colHeaderH);
+                ctx.strokeStyle = '#D2D0CE'; ctx.strokeRect(winW / 2 - rowNumColW, gridStartY, rowNumColW, colHeaderH);
+
+                let colX = winW / 2 - rowNumColW;
+                colDefs.forEach((col) => {
+                    ctx.fillStyle = '#F8F9FA'; ctx.fillRect(colX - col.width, gridStartY, col.width, colHeaderH);
+                    ctx.strokeStyle = '#D2D0CE'; ctx.strokeRect(colX - col.width, gridStartY, col.width, colHeaderH);
+                    ctx.font = "700 12px 'Plus Jakarta Sans'"; ctx.fillStyle = '#323130';
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(col.id, colX - col.width / 2, gridStartY + colHeaderH / 2);
+                    colX -= col.width;
+                });
+
+                const rowH = 40;
+                const rowsData = [
+                    { isHeader: true, c1: "كود العميل", c2: "اسم العميل والشركة", c3: "المنصة", c4: "حالة الصفقة", c5: "قيمة التعاقد", c6: "تاريخ المتابعة", c7: "معدل الإغلاق", t: 12.0 },
+                    { id: "CR-101", name: "مؤسسة النور للتجارة", platform: "واتساب", status: "تم التعاقد 💰", statusCol: '#107C41', statusBg: '#DFF6DD', valFormatted: "٢٥,٠٠٠ ج.م", date: "٢٠٢٦/٠٩/٠١", score: "٩٨%", scoreVal: 0.98, t: 12.4 },
+                    { id: "CR-102", name: "شركة الفهد للتسويق", platform: "انستغرام", status: "مؤكدة ✓", statusCol: '#0084FF', statusBg: '#E0F2FE', valFormatted: "١٨,٥٠٠ ج.م", date: "٢٠٢٦/٠٩/٠٢", score: "٩٢%", scoreVal: 0.92, t: 12.8 },
+                    { id: "CR-103", name: "مجموعة الأمل الطبية", platform: "ماسنجر", status: "قيد المتابعة ⏳", statusCol: '#A220FF', statusBg: '#F3E8FF', valFormatted: "١٤,٠٠٠ ج.م", date: "٢٠٢٦/٠٩/٠٣", score: "٧٥%", scoreVal: 0.75, t: 13.2 },
+                    { id: "CR-104", name: "مكتب الدلتا للاستشارات", platform: "جيميل", status: "تم التعاقد 💰", statusCol: '#107C41', statusBg: '#DFF6DD', valFormatted: "٣٢,٠٠٠ ج.م", date: "٢٠٢٦/٠٩/٠٣", score: "٩٥%", scoreVal: 0.95, t: 13.6 },
+                    { id: "CR-105", name: "أكاديمية الرواد الذكية", platform: "واتساب", status: "مؤكدة ✓", statusCol: '#0084FF', statusBg: '#E0F2FE', valFormatted: "١٩,٥٠٠ ج.م", date: "٢٠٢٦/٠٩/٠٤", score: "٨٨%", scoreVal: 0.88, t: 14.0 },
+                    { isTotal: true, id: "المجموع الكلي", name: "٥ صفقات معتمدة", platform: "أوتوماتيكي", status: "مكتمل ⚡", totalTarget: 109000, date: "مزامنة سحابية", score: "٩٠%", t: 14.4 }
+                ];
+
+                rowsData.forEach((row, ri) => {
+                    const rY = gridStartY + colHeaderH + ri * rowH;
+                    const rowNum = ri + 1;
+                    ctx.fillStyle = row.isTotal ? '#EDEBE9' : '#F8F9FA'; ctx.fillRect(winW / 2 - rowNumColW, rY, rowNumColW, rowH);
+                    ctx.strokeStyle = '#D2D0CE'; ctx.strokeRect(winW / 2 - rowNumColW, rY, rowNumColW, rowH);
+                    ctx.font = "700 12px 'Plus Jakarta Sans'"; ctx.fillStyle = '#323130'; ctx.textAlign = 'center'; ctx.fillText(rowNum.toString(), winW / 2 - rowNumColW / 2, rY + rowH / 2);
+
+                    const rowProg = springOvershoot(clamp((time - row.t) / 0.45), 1.8);
+                    if (rowProg <= 0) return;
+
+                    ctx.save();
+                    let cellX = winW / 2 - rowNumColW;
+                    const rowBg = row.isHeader ? '#E1DFDD' : (row.isTotal ? '#EBF3EB' : (ri % 2 === 0 ? '#FAF9F8' : '#ffffff'));
+
+                    colDefs.forEach((col, ci) => {
+                        ctx.fillStyle = rowBg; ctx.fillRect(cellX - col.width, rY, col.width, rowH);
+                        ctx.strokeStyle = '#E1DFDD'; ctx.strokeRect(cellX - col.width, rY, col.width, rowH);
+                        const cx = cellX - 14, cy = rY + rowH / 2;
+
+                        if (row.isHeader) {
+                            ctx.font = "800 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#201F1E';
+                            ctx.textAlign = 'right'; ctx.fillText(row[`c${ci+1}`], cx, cy);
+                        } else if (row.isTotal) {
+                            if (ci === 0) {
+                                ctx.font = "800 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'right'; ctx.fillText(row.id, cx, cy);
+                            } else if (ci === 1) {
+                                ctx.font = "700 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#201F1E'; ctx.textAlign = 'right'; ctx.fillText(row.name, cx, cy);
+                            } else if (ci === 3) {
+                                ctx.font = "700 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'center'; ctx.fillText(row.status, cellX - col.width / 2, cy);
+                            } else if (ci === 4) {
+                                const sumProg = clamp((time - 16.5) / 2.0);
+                                const currentVal = Math.floor(sumProg * row.totalTarget).toLocaleString('ar-EG');
+                                ctx.font = "900 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#0E5C2F'; ctx.textAlign = 'right'; ctx.fillText(`${currentVal} ج.م`, cx, cy);
+                            } else if (ci === 5) {
+                                ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#605E5C'; ctx.textAlign = 'right'; ctx.fillText(row.date, cx, cy);
+                            } else if (ci === 6) {
+                                ctx.font = "800 13px 'Plus Jakarta Sans'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'center'; ctx.fillText(row.score, cellX - col.width / 2, cy);
+                            }
+                        } else {
+                            if (ci === 0) {
+                                ctx.font = "700 12.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#605E5C'; ctx.textAlign = 'right'; ctx.fillText(row.id, cx, cy);
+                            } else if (ci === 1) {
+                                ctx.font = "800 14px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#201F1E'; ctx.textAlign = 'right'; ctx.fillText(row.name, cx, cy);
+                            } else if (ci === 2) {
+                                ctx.font = "600 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#605E5C'; ctx.textAlign = 'center'; ctx.fillText(row.platform, cellX - col.width / 2, cy);
+                            } else if (ci === 3) {
+                                ctx.fillStyle = row.statusBg; ctx.beginPath(); ctx.roundRect(cellX - col.width + 12, rY + 6, col.width - 24, 28, 14); ctx.fill();
+                                ctx.font = "800 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = row.statusCol; ctx.textAlign = 'center'; ctx.fillText(row.status, cellX - col.width / 2, cy + 1);
+                            } else if (ci === 4) {
+                                ctx.font = "800 14px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'right'; ctx.fillText(row.valFormatted, cx, cy);
+                            } else if (ci === 5) {
+                                ctx.font = "600 12px 'Plus Jakarta Sans'"; ctx.fillStyle = '#605E5C'; ctx.textAlign = 'right'; ctx.fillText(row.date, cx, cy);
+                            } else if (ci === 6) {
+                                const barW = 60, barH = 7;
+                                ctx.fillStyle = '#E1DFDD'; ctx.beginPath(); ctx.roundRect(cellX - col.width + 15, cy - 3.5, barW, barH, 3.5); ctx.fill();
+                                ctx.fillStyle = '#107C41'; ctx.beginPath(); ctx.roundRect(cellX - col.width + 15, cy - 3.5, barW * row.scoreVal, barH, 3.5); ctx.fill();
+                                ctx.font = "700 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#323130'; ctx.textAlign = 'right'; ctx.fillText(row.score, cx, cy);
+                            }
+                        }
+                        cellX -= col.width;
+                    });
+                    ctx.restore();
+                });
+
+                // Range Selection Highlight & Active Cell E7
+                const colE_W = colDefs[4].width;
+                let colE_X = winW / 2 - rowNumColW;
+                for (let i = 0; i < 4; i++) colE_X -= colDefs[i].width;
+                const startE2_Y = gridStartY + colHeaderH + 1 * rowH;
+
+                if (time >= 14.0 && time < 16.5) {
+                    const highlightH = 5 * rowH;
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(16, 124, 65, 0.16)'; ctx.fillRect(colE_X - colE_W, startE2_Y, colE_W, highlightH);
+                    ctx.strokeStyle = '#107C41'; ctx.lineWidth = 2.4; ctx.strokeRect(colE_X - colE_W, startE2_Y, colE_W, highlightH);
+                    ctx.fillStyle = '#107C41'; ctx.fillRect(colE_X - colE_W - 3, startE2_Y + highlightH - 3, 6, 6);
+                    ctx.restore();
+                }
+
+                if (time >= 16.5) {
+                    const totalE7_Y = gridStartY + colHeaderH + 6 * rowH;
+                    ctx.save();
+                    ctx.strokeStyle = '#107C41'; ctx.lineWidth = 2.8; ctx.strokeRect(colE_X - colE_W, totalE7_Y, colE_W, rowH);
+                    ctx.fillStyle = '#107C41'; ctx.fillRect(colE_X - colE_W - 3, totalE7_Y + rowH - 3, 6, 6);
+                    ctx.restore();
+                }
+
+                // Bottom Tabs
+                const sheetTabsY = winH / 2 - 62;
+                const sheetTabsH = 34;
+                ctx.fillStyle = '#F3F2F1'; ctx.fillRect(-winW / 2, sheetTabsY, winW, sheetTabsH);
+                ctx.strokeStyle = '#D2D0CE'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, sheetTabsY); ctx.lineTo(winW / 2, sheetTabsY); ctx.stroke();
+
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(winW / 2 - 220, sheetTabsY + 3, 190, sheetTabsH - 3, [6, 6, 0, 0]); ctx.fill();
+                ctx.fillStyle = '#107C41'; ctx.fillRect(winW / 2 - 220, sheetTabsY + sheetTabsH - 3, 190, 3);
+                ctx.font = "800 12.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#107C41'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText("ورقة 1: العملاء والـ CRM", winW / 2 - 125, sheetTabsY + sheetTabsH / 2 + 1);
+
+                ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#605E5C';
+                ctx.fillText("ورقة 2: التحليلات", winW / 2 - 300, sheetTabsY + sheetTabsH / 2 + 1);
+                drawNativeSVG(ctx, SVG_PATHS.plus, winW / 2 - 380, sheetTabsY + sheetTabsH / 2, 16, '#605E5C', 2.0);
+
+                // Status Bar
+                const statusBarY = winH / 2 - 28;
+                const statusBarH = 28;
+                ctx.fillStyle = '#107C41'; ctx.fillRect(-winW / 2, statusBarY, winW, statusBarH);
+                ctx.font = "700 12px 'IBM Plex Sans Arabic', 'Plus Jakarta Sans'"; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+                ctx.fillText("جاهز", winW / 2 - 24, statusBarY + statusBarH / 2);
+
+                let liveSumText = "0 ج.م";
+                if (time >= 15.5) {
+                    const sProg = clamp((time - 15.5) / 2.0);
+                    liveSumText = `${Math.floor(sProg * 109000).toLocaleString('ar-EG')} ج.م`;
+                }
+                ctx.textAlign = 'left'; ctx.fillText(`المتوسط: ٢١,٨٠٠  ·  العدد: ٥  ·  المجموع: ${liveSumText}`, -winW / 2 + 180, statusBarY + statusBarH / 2);
+                ctx.font = "700 11px 'Plus Jakarta Sans'"; ctx.fillText("100%  [-] ━━━━━●━ [+]", -winW / 2 + 30, statusBarY + statusBarH / 2);
+
+                ctx.restore(); ctx.restore();
+            }
+
+            // =========================================================================
+            // 5. TYPOGRAPHIC INTRO 3: GMAIL [19.4s - 21.4s]
+            // =========================================================================
+            if (time >= 19.2 && time < 21.6) {
+                const typo3Alpha = time < 20.8 ? clamp((time - 19.2) / 0.45) : clamp(1.0 - (time - 20.8) / 0.55);
+                ctx.save();
+                ctx.globalAlpha = typo3Alpha;
+
+                const words3 = [
+                    { text: "أتمتة", start: 19.35, dur: 0.36, tension: 1.6 },
+                    { text: "المراسلات", start: 19.52, dur: 0.32, tension: 1.7 },
+                    { text: "وتلخيص", start: 19.66, dur: 0.28, tension: 1.8 },
+                    { text: "الإيميلات", start: 19.78, dur: 0.24, tension: 1.9 },
+                    { text: "بالذكاء", start: 19.88, dur: 0.22, tension: 2.0 },
+                    { text: "الاصطناعي", start: 19.97, dur: 0.20, tension: 2.1 }
+                ];
+
+                ctx.font = "900 64px 'IBM Plex Sans Arabic'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                const wordGap = 26;
+                const wordWidths = words3.map(w => ctx.measureText(w.text).width);
+                const totalWidth = wordWidths.reduce((a, b) => a + b, 0) + (words3.length - 1) * wordGap;
+                let currentX = (CONFIG.width / 2) + (totalWidth / 2);
+
+                words3.forEach((w) => {
+                    const wWidth = ctx.measureText(w.text).width;
+                    const wCenter = currentX - wWidth / 2;
+                    currentX -= (wWidth + wordGap);
+
+                    const elapsed = time - w.start;
+                    if (elapsed > 0) {
+                        const progress = clamp(elapsed / w.dur);
+                        const snap = easeOutExpo(progress);
+                        const bounce = Math.sin(progress * Math.PI) * 0.05;
+                        const finalP = clamp(snap + bounce);
+                        const slideY = (1 - finalP) * 55;
+                        const wordAlpha = clamp(elapsed / 0.16);
+
+                        ctx.save();
+                        ctx.globalAlpha = typo3Alpha * wordAlpha;
+                        ctx.translate(wCenter, CONFIG.height / 2 + slideY);
+                        ctx.fillStyle = '#0a0f1d';
+                        ctx.fillText(w.text, 0, 0);
+                        ctx.restore();
+                    }
+                });
+                ctx.restore();
+            }
+
+            // =========================================================================
+            // 6. SCENE 3: GMAIL DESKTOP (BOTTOM-UP ELEVATION) [21.2s - 30.0s]
+            // =========================================================================
+            if (time >= 21.2) {
+                // Rising from Bottom (+650px to 0px)
+                const gmailEnterProg = springOvershoot(clamp((time - 21.2) / 1.1), 1.85);
+                const gmailSlideY = (1 - gmailEnterProg) * 650;
+                const gmailScale = 0.94 + 0.06 * gmailEnterProg;
+
+                ctx.save();
+                ctx.translate(winX, winY + gmailSlideY);
+                ctx.scale(gmailScale, gmailScale);
+
+                ctx.beginPath(); ctx.roundRect(-winW / 2, -winH / 2, winW, winH, 20); ctx.fillStyle = '#ffffff'; ctx.fill();
+                const edgeGrad3 = ctx.createLinearGradient(-winW / 2, -winH / 2, winW / 2, winH / 2);
+                edgeGrad3.addColorStop(0, '#ffffff'); edgeGrad3.addColorStop(0.3, '#e5e5ea'); edgeGrad3.addColorStop(0.7, '#d4d4d8'); edgeGrad3.addColorStop(1, '#e5e5ea');
+                ctx.strokeStyle = edgeGrad3; ctx.lineWidth = 4.0; ctx.stroke();
+
+                ctx.save();
+                ctx.beginPath(); ctx.roundRect(-winW / 2 + 2, -winH / 2 + 2, winW - 4, winH - 4, 18); ctx.clip();
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(-winW / 2, -winH / 2, winW, winH);
+
+                // Chrome Bar
+                const chromeBarH = 42;
+                ctx.fillStyle = '#F1F3F4'; ctx.fillRect(-winW / 2, -winH / 2, winW, chromeBarH);
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-winW / 2, -winH / 2 + chromeBarH); ctx.lineTo(winW / 2, -winH / 2 + chromeBarH); ctx.stroke();
+                const tlX = -winW / 2 + 26, tlY = -winH / 2 + chromeBarH / 2;
+                ctx.fillStyle = '#ED6A5E'; ctx.beginPath(); ctx.arc(tlX, tlY, 5.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#F5BF4F'; ctx.beginPath(); ctx.arc(tlX + 16, tlY, 5.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#62C554'; ctx.beginPath(); ctx.arc(tlX + 32, tlY, 5.5, 0, Math.PI * 2); ctx.fill();
+
+                const urlW = 500, urlH = 26;
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-urlW / 2, -winH / 2 + 8, urlW, urlH, 13); ctx.fill();
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+                ctx.font = "500 11.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5F6368';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText("mail.google.com/mail/u/0/#inbox", 0, -winH / 2 + 21);
+
+                // Gmail Header
+                const mainHeaderY = -winH / 2 + chromeBarH;
+                const mainHeaderH = 68;
+                ctx.fillStyle = '#F6F8FC'; ctx.fillRect(-winW / 2, mainHeaderY, winW, mainHeaderH);
+                const hY = mainHeaderY + mainHeaderH / 2;
+
+                let curRightX = winW / 2 - 28;
+                drawNativeSVG(ctx, SVG_PATHS.menu, curRightX, hY, 22, '#444746', 2.0);
+                curRightX -= 44;
+
+                // Real Native Gmail Logo from Iconify
+                if (appIcons.googleGmail) {
+                    ctx.drawImage(appIcons.googleGmail, curRightX - 16, hY - 12, 32, 24);
+                }
+                curRightX -= 38;
+
+                ctx.textAlign = 'right'; ctx.font = "700 22px 'Plus Jakarta Sans', sans-serif"; ctx.fillStyle = '#444746';
+                ctx.fillText("Gmail", curRightX, hY + 3);
+
+                const searchW = 620, searchH = 46;
+                ctx.fillStyle = '#EAF1FB'; ctx.beginPath(); ctx.roundRect(-searchW / 2 + 60, hY - searchH/2, searchW, searchH, 24); ctx.fill();
+                drawNativeSVG(ctx, SVG_PATHS.search, searchW / 2 + 32, hY, 20, '#444746', 2.0);
+                ctx.font = "600 13.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#444746';
+                ctx.textAlign = 'right'; ctx.fillText("البحث في البريد...", searchW / 2 + 10, hY + 3);
+
+                let curLeftX = -winW / 2 + 28;
+                ctx.beginPath(); ctx.arc(curLeftX + 16, hY, 17, 0, Math.PI * 2); ctx.fillStyle = '#EA4335'; ctx.fill();
+                ctx.font = "800 13px 'Plus Jakarta Sans'"; ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.fillText("A", curLeftX + 16, hY + 1);
+                curLeftX += 54;
+                drawNativeSVG(ctx, SVG_PATHS.gridApps, curLeftX, hY, 18, '#444746', 1.8, true);
+                curLeftX += 40;
+                drawNativeSVG(ctx, SVG_PATHS.settings, curLeftX, hY, 20, '#444746', 2.0);
+
+                // Sidebar
+                const sidebarW = 250;
+                const contentY = mainHeaderY + mainHeaderH;
+                const contentH = winH - (chromeBarH + mainHeaderH);
+
+                ctx.fillStyle = '#F6F8FC'; ctx.fillRect(winW / 2 - sidebarW, contentY, sidebarW, contentH);
+
+                const composeBtnY = contentY + 20;
+                ctx.fillStyle = '#C2E7FF'; ctx.beginPath(); ctx.roundRect(winW / 2 - sidebarW + 20, composeBtnY, 140, 52, 16); ctx.fill();
+                drawNativeSVG(ctx, SVG_PATHS.plus, winW / 2 - sidebarW + 48, composeBtnY + 26, 22, '#001D35', 2.6);
+                ctx.font = "800 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#001D35';
+                ctx.textAlign = 'right'; ctx.fillText("إنشاء", winW / 2 - sidebarW + 115, composeBtnY + 30);
+
+                const navItems = [
+                    { name: "البريد الوارد", count: "12", active: true },
+                    { name: "المميزة بنجمة", count: "", active: false },
+                    { name: "المؤجلة", count: "", active: false },
+                    { name: "البريد المرسل", count: "", active: false },
+                    { name: "المسودات", count: "3", active: false }
+                ];
+                navItems.forEach((item, idx) => {
+                    const ny = composeBtnY + 75 + idx * 38;
+                    if (item.active) {
+                        ctx.fillStyle = '#D3E3FD'; ctx.beginPath(); ctx.roundRect(winW / 2 - sidebarW + 12, ny - 14, sidebarW - 24, 34, 17); ctx.fill();
+                        ctx.font = "800 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#041E49';
+                    } else {
+                        ctx.font = "600 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#444746';
+                    }
+                    ctx.textAlign = 'right'; ctx.fillText(item.name, winW / 2 - 45, ny + 4);
+                    if (item.count) {
+                        ctx.textAlign = 'left'; ctx.font = "700 12px 'Plus Jakarta Sans'";
+                        ctx.fillText(item.count, winW / 2 - sidebarW + 32, ny + 3);
+                    }
+                });
+
+                // Main Thread View
+                const threadW = winW - sidebarW;
+                const threadX = -winW / 2;
+
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(threadX, contentY, threadW, contentH);
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(threadX + threadW, contentY); ctx.lineTo(threadX + threadW, contentY + contentH); ctx.stroke();
+
+                const threadToolbarY = contentY + 22;
+                drawNativeSVG(ctx, SVG_PATHS.chevronRight, threadX + threadW - 35, threadToolbarY, 19, '#444746', 2.2);
+                drawNativeSVG(ctx, SVG_PATHS.trash, threadX + threadW - 75, threadToolbarY, 18, '#444746', 1.8);
+                drawNativeSVG(ctx, SVG_PATHS.star, threadX + threadW - 110, threadToolbarY, 18, '#444746', 1.8);
+
+                const subjectY = contentY + 68;
+                ctx.textAlign = 'right'; ctx.font = "800 24px 'Plus Jakarta Sans', 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("Website launch", threadX + threadW - 35, subjectY);
+
+                ctx.fillStyle = '#E8F0FE'; ctx.beginPath(); ctx.roundRect(threadX + threadW - 290, subjectY - 18, 90, 24, 6); ctx.fill();
+                ctx.font = "700 11.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1A73E8';
+                ctx.textAlign = 'center'; ctx.fillText("فريق الإطلاق", threadX + threadW - 245, subjectY - 2);
+
+                const geminiY = subjectY + 25;
+                ctx.fillStyle = '#F0F4F9'; ctx.beginPath(); ctx.roundRect(threadX + 40, geminiY, threadW - 75, 42, 12); ctx.fill();
+                ctx.strokeStyle = '#D3E3FD'; ctx.lineWidth = 1; ctx.stroke();
+                drawNativeSVG(ctx, SVG_PATHS.sparkle, threadX + threadW - 60, geminiY + 21, 18, '#1A73E8', 1.8, true);
+                ctx.textAlign = 'right'; ctx.font = "700 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1A73E8';
+                ctx.fillText("تلخيص المحادثة بالذكاء الاصطناعي (Gemini):", threadX + threadW - 80, geminiY + 25);
+                ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#444746';
+                ctx.fillText("متابعة إطلاق الموقع، واعتماد الـ SEO والـ QA، والاجتماع غداً الساعة 10:00 ص.", threadX + threadW - 340, geminiY + 25);
+
+                // Email 1: Annie Bee
+                const e1Y = geminiY + 58;
+                const e1Prog = springOvershoot(clamp((time - 22.0) / 0.5), 1.8);
+                if (e1Prog > 0) {
+                    ctx.save(); ctx.translate(threadX + 40, e1Y); ctx.scale(e1Prog, e1Prog);
+                    const cW = threadW - 75, cH = 135;
+                    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(0, 0, cW, cH, 12); ctx.fill();
+                    ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(cW - 26, 26, 15, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(cW - 30, 24, 6, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.arc(cW - 21, 29, 5, 0, Math.PI * 2); ctx.fill();
+
+                    ctx.textAlign = 'right'; ctx.font = "800 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1f1f1f';
+                    ctx.fillText("Annie Bee", cW - 52, 22);
+                    ctx.font = "500 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5e5e5e';
+                    ctx.fillText("9:35 AM", cW - 130, 22);
+                    ctx.fillText("to me, Rob, Jess & Mark ⌄", cW - 52, 38);
+
+                    ctx.font = "400 12.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1f1f1f';
+                    ctx.fillText("Hi folks, I wanted to check in on the progress of our website launch project. It's been a few days since our last meeting,", cW - 20, 68);
+                    ctx.fillText("and I'm keen to see where we stand on Content Finalization, SEO Implementation, and QA Testing. I'll schedule a quick", cW - 20, 88);
+                    ctx.fillText("follow-up meeting tomorrow to discuss next steps.", cW - 20, 108);
+                    ctx.restore();
+                }
+
+                // Email 2: Rob Gonzales
+                const e2Y = e1Y + 148;
+                const e2Prog = springOvershoot(clamp((time - 22.8) / 0.5), 1.8);
+                if (e2Prog > 0) {
+                    ctx.save(); ctx.translate(threadX + 40, e2Y); ctx.scale(e2Prog, e2Prog);
+                    const cW = threadW - 75, cH = 90;
+                    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(0, 0, cW, cH, 12); ctx.fill();
+                    ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(cW - 26, 26, 15, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#ffdfd3'; ctx.beginPath(); ctx.arc(cW - 26, 24, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#0284c7'; ctx.beginPath(); ctx.arc(cW - 26, 35, 8, Math.PI, 0); ctx.fill();
+
+                    ctx.textAlign = 'right'; ctx.font = "800 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1f1f1f';
+                    ctx.fillText("Rob Gonzales", cW - 52, 22);
+                    ctx.font = "500 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5e5e5e';
+                    ctx.fillText("9:40 AM", cW - 152, 22);
+                    ctx.fillText("to me, Rob, Jess & Mark ⌄", cW - 52, 38);
+
+                    ctx.font = "400 12.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1f1f1f';
+                    ctx.fillText("We've made progress on Content Finalization and SEO Implementation, while QA testing is still ongoing. Let's definitely follow up tomorrow!", cW - 20, 68);
+                    ctx.restore();
+                }
+
+                // Email 3: Jess Lee
+                const e3Y = e2Y + 102;
+                const e3Prog = springOvershoot(clamp((time - 23.6) / 0.5), 1.8);
+                if (e3Prog > 0) {
+                    ctx.save(); ctx.translate(threadX + 40, e3Y); ctx.scale(e3Prog, e3Prog);
+                    const cW = threadW - 75, cH = 95;
+                    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(0, 0, cW, cH, 12); ctx.fill();
+                    ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(cW - 26, 26, 15, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#ec4899'; ctx.beginPath(); ctx.arc(cW - 24, 26, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#fbcfe8'; ctx.beginPath(); ctx.arc(cW - 30, 23, 4, 0, Math.PI * 2); ctx.fill();
+
+                    ctx.textAlign = 'right'; ctx.font = "800 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1f1f1f';
+                    ctx.fillText("Jess Lee", cW - 52, 22);
+                    ctx.font = "500 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5e5e5e';
+                    ctx.fillText("9:45 AM", cW - 120, 22);
+                    ctx.fillText("to me, Rob, Jess & Mark ⌄", cW - 52, 38);
+
+                    ctx.font = "400 12.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1f1f1f';
+                    ctx.fillText("That sounds like a good plan. 10:00 AM would work best for me if you're all free then. Let's aim to sync briefly to finalize our next steps before the launch.", cW - 20, 68);
+                    ctx.restore();
+                }
+
+                // Reply Actions Bar
+                const replyBarY = e3Y + 115;
+                ctx.save();
+                ctx.translate(threadX + threadW - 40, replyBarY);
+
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-90, -18, 90, 36, 18); ctx.fill();
+                ctx.strokeStyle = '#747775'; ctx.lineWidth = 1; ctx.stroke();
+                drawNativeSVG(ctx, SVG_PATHS.replyArrow, -24, 0, 16, '#1f1f1f', 2.0);
+                ctx.font = "700 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f'; ctx.textAlign = 'right'; ctx.fillText("رد", -42, 4);
+
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-240, -18, 140, 36, 18); ctx.fill();
+                ctx.strokeStyle = '#747775'; ctx.lineWidth = 1; ctx.stroke();
+                drawNativeSVG(ctx, SVG_PATHS.replyAll, -135, 0, 17, '#1f1f1f', 2.0);
+                ctx.fillText("الرد على الكل", -160, 4);
+
+                ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(-375, -18, 125, 36, 18); ctx.fill();
+                ctx.strokeStyle = '#747775'; ctx.lineWidth = 1; ctx.stroke();
+                drawNativeSVG(ctx, SVG_PATHS.forward, -275, 0, 16, '#1f1f1f', 2.0);
+                ctx.fillText("إعادة توجيه", -298, 4);
+
+                ctx.restore();
+
+                ctx.restore(); ctx.restore();
+            }
+        }
+
+        // ============ FIXED TECHNICAL LAYER (RUNTIME ENGINE) ============
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const statusText = document.getElementById('status-text');
+        const spinner = document.getElementById('spinner');
+
+        let audioAudioEl = null;
+        let sharedAudioCtx = null;
+        let state = { currentTime: 0, isRendering: false, animationFrameId: null };
+
+        window.renderStatus = 'loading';
+
+        function logToConsole(msg, type = 'info') {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function startPreviewLoop() {
+            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+            const startTime = performance.now();
+
+            async function loop(now) {
+                if (state.isRendering) return;
+                const elapsed = (now - startTime) / 1000;
+                const currTime = elapsed % CONFIG.duration;
+                state.currentTime = currTime;
+                await drawSceneAtTime(currTime);
+
+                if (currTime < CONFIG.duration) {
+                    state.animationFrameId = requestAnimationFrame(loop);
+                } else {
+                    statusText.textContent = "Master Simulation Suite Ready ✓";
+                    spinner.style.display = 'none';
+                }
+            }
+            state.animationFrameId = requestAnimationFrame(loop);
+        }
+
+        const OFOQ_FRAME_FORMAT = 'image/png';
+        window.__ofoqTotalFrames = 0;
+        window.__ofoqFps = 0;
+        window.__ofoqOutputFilename = '';
+        window.__ofoqAudioWavBase64 = null;
+
+        async function __ofoqGetFrameBatch(startFrame, count) {
+            const frames = [];
+            for (let i = 0; i < count; i++) {
+                const frameIndex = startFrame + i;
+                if (frameIndex >= window.__ofoqTotalFrames) break;
+                const timestamp = frameIndex / window.__ofoqFps;
+                await drawSceneAtTime(timestamp);
+                const dataUrl = canvas.toDataURL(OFOQ_FRAME_FORMAT);
+                frames.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+            }
+            return frames;
+        }
+        window.__ofoqGetFrameBatch = __ofoqGetFrameBatch;
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            statusText.textContent = "Replaying Suite Simulation...";
+            spinner.style.display = 'inline-block';
+            startPreviewLoop();
+        });
+
+        document.getElementById('btn-toggle-console').addEventListener('click', () => {
+            const modal = document.getElementById('console-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        });
+
+        document.getElementById('btn-close-console').addEventListener('click', () => {
+            document.getElementById('console-modal').style.display = 'none';
+        });
+
+        document.getElementById('btn-render-start').addEventListener('click', () => {
+            logToConsole("Export handled via OFOQ runner (Node + ffmpeg).", 'warn');
+        });
+
+        async function init() {
+            try {
+                await prepareIdentity();
+                canvas.width = CONFIG.width;
+                canvas.height = CONFIG.height;
+
+                const viewport = document.getElementById('viewport');
+                viewport.style.aspectRatio = `${CONFIG.width} / ${CONFIG.height}`;
+                viewport.style.width = `min(94vw, calc(86vh * (${CONFIG.width} / ${CONFIG.height})))`;
+
+                window.__ofoqFps = CONFIG.fps;
+                window.__ofoqTotalFrames = Math.ceil(CONFIG.duration * CONFIG.fps);
+                window.__ofoqOutputFilename = `${OUTPUT_FILENAME}.mp4`;
+
+                statusText.textContent = "Master Simulation Suite Ready ✓";
+                spinner.style.display = 'none';
+                window.renderStatus = 'ready';
+                
+                await drawSceneAtTime(0);
+                startPreviewLoop();
+            } catch (err) {
+                logToConsole("Initialization error: " + err.message, 'error');
+                statusText.textContent = "Error loading scene";
+                window.__renderError = err.message;
+                window.renderStatus = 'error';
+            }
+        }
+        window.addEventListener('load', init);
+    </script>
+</body>
+              </html>
