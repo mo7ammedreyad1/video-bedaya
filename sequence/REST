@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Quad iPhone Suite - Cinematic Typography & Refined Gmail</title>
+
+    <!-- FONT IMPORTS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body {
+            background-color: #f5f5f5; color: #0a0f1d;
+            font-family: 'IBM Plex Sans Arabic', 'Plus Jakarta Sans', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; min-height: 100dvh; overflow: hidden; padding: 10px;
+        }
+        #viewport {
+            position: relative;
+            max-height: 86vh;
+            max-width: 94vw;
+            width: auto;
+            height: auto;
+            background: #f5f5f5;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.05), 0 0 1px 1px rgba(0, 0, 0, 0.02);
+            border-radius: 18px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+        #hud {
+            position: absolute; top: 16px; right: 16px;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(14px);
+            color: #0a0f1d; padding: 6px 14px; border-radius: 30px;
+            font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid rgba(0, 0, 0, 0.05); z-index: 10;
+        }
+        .spinner {
+            width: 12px; height: 12px; border: 2px solid #e5e5ea;
+            border-top: 2px solid #0a0f1d; border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #controls-overlay {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10; background: rgba(255, 255, 255, 0.92);
+            padding: 6px 12px; border-radius: 40px; backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        .btn {
+            font-family: inherit; font-size: 12px; font-weight: 700; padding: 6px 14px;
+            border-radius: 20px; border: none; cursor: pointer; display: flex;
+            align-items: center; gap: 6px; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .btn-preview { background: #f1f5f9; color: #0f172a; }
+        .btn-preview:hover { background: #e2e8f0; }
+        .btn-render { background: #0ea5e9; color: #ffffff; }
+        .btn-render:hover { background: #0284c7; }
+        #console-modal {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 680px; max-width: 92vw; height: 400px; background: #ffffff;
+            border: 1px solid #e5e5ea; border-radius: 14px; box-shadow: 0 30px 80px rgba(0,0,0,0.15);
+            z-index: 100; display: none; flex-direction: column; overflow: hidden;
+        }
+        #console-header {
+            background: #f8fafc; padding: 12px 18px; display: flex; color: #0f172a;
+            justify-content: space-between; align-items: center; font-size: 13px; font-weight: bold;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        #console-output {
+            flex: 1; padding: 14px; overflow-y: auto; font-family: monospace;
+            font-size: 12px; color: #334155; background: #ffffff; line-height: 1.6;
+        }
+        .log-line { margin-bottom: 4px; }
+        .log-info { color: #0284c7; }
+        .log-warn { color: #d97706; }
+        .log-error { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div id="viewport">
+        <canvas id="videoCanvas"></canvas>
+        <div id="hud"><div class="spinner" id="spinner"></div><span id="status-text">جاري تشغيل المنظومة الموحدة...</span></div>
+        <div id="controls-overlay">
+            <button class="btn btn-preview" id="btn-replay">إعادة العرض</button>
+            <button class="btn btn-toggle-console" id="btn-toggle-console">السجل البرمجي</button>
+            <button class="btn btn-render" id="btn-render-start">تصدير المشهد</button>
+        </div>
+    </div>
+
+    <div id="console-modal">
+        <div id="console-header">
+            <span>سجل النظام</span>
+            <button class="btn btn-preview" id="btn-close-console" style="color:#fff; background:#ef4444; border:none; padding:4px 14px;">إغلاق</button>
+        </div>
+        <div id="console-output"></div>
+    </div>
+
+    <script type="module">
+        // ============ IDENTITY LAYER (UNIFIED iPHONE SUITE ENGINE) ============
+        const CONFIG = {
+            fps: 30,
+            width: 1920,
+            height: 1080,
+            duration: 24.0
+        };
+        const OUTPUT_FILENAME = 'quad_iphone_suite_master';
+        let audioBuffer = null;
+
+        function clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, v)); }
+        
+        function springOvershoot(t, tension = 1.85) {
+            t = clamp(t);
+            return 1 + (tension + 1) * Math.pow(t - 1, 3) + tension * Math.pow(t - 1, 2);
+        }
+
+        function easeOutExpo(t) {
+            t = clamp(t);
+            return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+        }
+
+        function easeInOutExpo(t) {
+            t = clamp(t);
+            if (t === 0) return 0;
+            if (t === 1) return 1;
+            return t < 0.5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2;
+        }
+
+        function easeInOutCubic(t) { 
+            t = clamp(t);
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; 
+        }
+
+        // ============ ICONIFY NATIVE LOGOS LOADER ============
+        const appLogos = {
+            whatsapp: null,
+            messenger: null,
+            instagram: null,
+            gmail: null
+        };
+
+        const ICONIFY_DATA_URIS = {
+            whatsapp: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <path fill="#25d366" d="M24 4C13 4 4 13 4 24c0 3.5 1 7 2.8 10L4 44l10.3-2.7c3 1.7 6.3 2.7 9.7 2.7 11 0 20-9 20-20S35 4 24 4z"/>
+                  <path fill="#ffffff" d="M35.2 28.7c-.5-.3-2.9-1.4-3.4-1.6-.4-.2-.8-.3-1.1.3-.3.5-1.2 1.6-1.5 1.9-.3.3-.6.4-1.1.1-.5-.3-2.2-.8-4.2-2.6-1.6-1.4-2.6-3.1-2.9-3.7-.3-.5 0-.8.2-1.1.2-.2.5-.6.8-.9.3-.3.4-.5.6-.8.2-.4.1-.7 0-1-.1-.3-1.1-2.7-1.5-3.7-.4-1-.8-.8-1.1-.8h-1c-.3 0-.9.1-1.4.7-.5.5-1.9 1.8-1.9 4.5 0 2.6 1.9 5.2 2.2 5.6.3.4 3.8 5.8 9.2 8.1 1.3.6 2.3.9 3.1 1.1 1.3.4 2.5.4 3.4.2 1-.2 2.9-1.2 3.3-2.4.4-1.1.4-2.1.3-2.3-.1-.2-.5-.4-1-.7z"/>
+                </svg>
+            `),
+            messenger: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <path fill="url(#msGrad)" d="M24 4C12.9 4 4 12.3 4 22.7c0 5.8 2.8 11 7.2 14.5V44l6.5-3.6c2 .5 4.1.8 6.3.8 11.1 0 20-8.3 20-18.5S35.1 4 24 4z"/>
+                  <defs>
+                    <linearGradient id="msGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#00B2FF"/>
+                      <stop offset="50%" stop-color="#006AFF"/>
+                      <stop offset="100%" stop-color="#FF5280"/>
+                    </linearGradient>
+                  </defs>
+                  <path fill="#ffffff" d="M14 26.5l6.5-6.8 5 5 7.5-6.7-6.5 6.8-5-5z"/>
+                </svg>
+            `),
+            instagram: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                  <defs>
+                    <linearGradient id="igGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#f09433"/>
+                      <stop offset="25%" stop-color="#e6683c"/>
+                      <stop offset="50%" stop-color="#dc2743"/>
+                      <stop offset="75%" stop-color="#cc2366"/>
+                      <stop offset="100%" stop-color="#bc1888"/>
+                    </linearGradient>
+                  </defs>
+                  <rect width="48" height="48" rx="12" fill="url(#igGrad)"/>
+                  <path fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" d="M15 8h18a7 7 0 0 1 7 7v18a7 7 0 0 1-7 7H15a7 7 0 0 1-7-7V15a7 7 0 0 1 7-7z"/>
+                  <circle cx="24" cy="24" r="7.5" fill="none" stroke="#ffffff" stroke-width="3.5"/>
+                  <circle cx="33" cy="15" r="2" fill="#ffffff"/>
+                </svg>
+            `),
+            gmail: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.272H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L12 9.545l8.073-6.052C21.69 2.28 24 3.434 24 5.457z"/>
+                  <path fill="#34A853" d="M0 19.366c0 .904.732 1.636 1.636 1.636h3.819V11.73L0 7.82v11.546z"/>
+                  <path fill="#EA4335" d="M18.545 11.73v9.272h3.819c.904 0 1.636-.732 1.636-1.636V7.82l-5.455 3.91z"/>
+                  <path fill="#FBBC04" d="M20.073 3.493L12 9.545 3.927 3.493C2.309 2.279 0 3.434 0 5.457V7.82l12 9 12-9V5.457c0-2.023-2.309-3.178-3.927-1.964z"/>
+                  <path fill="#C5221F" d="M18.545 11.73L24 7.82V5.457c0-2.023-2.309-3.178-3.927-1.964L12 9.545l6.545 2.185z"/>
+                </svg>
+            `)
+        };
+
+        function fetchIconify(key, apiName) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve(img);
+                img.onerror = () => {
+                    const fallback = new Image();
+                    fallback.onload = () => resolve(fallback);
+                    fallback.src = ICONIFY_DATA_URIS[key];
+                };
+                img.src = `https://api.iconify.design/${apiName}.svg`;
+            });
+        }
+
+        // Precision 24x24 Vectors
+        const SVG_PATHS = {
+            phone: new Path2D("M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"),
+            video: new Path2D("M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h11a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"),
+            info: new Path2D("M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-11v6h2v-6h-2zm0-4v2h2V7h-2z"),
+            chevronRight: new Path2D("M9 6l6 6-6 6"),
+            wifi: new Path2D("M12 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm-4.24-4.24a6 6 0 0 1 8.48 0M4.93 10.93a10 10 0 0 1 14.14 0"),
+            sparkle: new Path2D("M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"),
+            trash: new Path2D("M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"),
+            star: new Path2D("M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"),
+            threeDots: new Path2D("M12 5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm0 8.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"),
+            replyAll: new Path2D("M7 10h8a5 5 0 0 1 5 5v2M3 10l4-4M3 10l4 4M7 6l4-4M7 14l4 4"),
+            forward: new Path2D("M21 10H11a5 5 0 0 0-5 5v2m15-7l-4-4m4 4l-4 4"),
+            snooze: new Path2D("M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M12 8v5l3 3")
+        };
+
+        function drawNativeSVG(ctx, path, x, y, size = 20, color = '#1f1f1f', lineWidth = 2.0, isFill = false) {
+            ctx.save();
+            ctx.translate(x, y);
+            const scale = size / 24;
+            ctx.scale(scale, scale);
+            ctx.translate(-12, -12);
+            
+            if (isFill) {
+                ctx.fillStyle = color;
+                ctx.fill(path);
+            } else {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth / scale;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke(path);
+            }
+            ctx.restore();
+        }
+
+        function drawNativeBattery(ctx, x, y, level = 0.85, col = '#000000') {
+            ctx.save();
+            ctx.strokeStyle = col;
+            ctx.lineWidth = 1.6;
+            ctx.strokeRect(x - 11, y - 5, 20, 10);
+            ctx.fillStyle = col;
+            ctx.fillRect(x + 9.5, y - 2.5, 2, 5);
+            ctx.fillRect(x - 9, y - 3.5, 16 * level, 7);
+            ctx.restore();
+        }
+
+        // Custom Chat Assets
+        const CustomSVGs = {
+            doubleBlueTick(ctx, x, y) {
+                ctx.save();
+                ctx.strokeStyle = '#34B7F1'; ctx.lineWidth = 2.0; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.lineTo(x - 3, y + 4.5); ctx.lineTo(x + 5, y - 4.5);
+                ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x - 1.5, y); ctx.lineTo(x + 3, y + 4.5); ctx.lineTo(x + 11, y - 4.5);
+                ctx.stroke();
+                ctx.restore();
+            },
+            forwardArrow(ctx, x, y) {
+                ctx.save();
+                ctx.fillStyle = '#8696a0'; ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.moveTo(x + 3, y - 4); ctx.lineTo(x - 2, y); ctx.lineTo(x + 3, y + 4);
+                ctx.moveTo(x - 2, y); ctx.lineTo(x + 5, y); ctx.stroke();
+                ctx.restore();
+            },
+            stickerCoffee(ctx, x, y, s = 1.1) {
+                ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+                ctx.fillStyle = '#8B5A2B'; ctx.strokeStyle = '#5C381E'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(-36, -8, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(36, -8, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#8B5A2B'; ctx.strokeStyle = '#5C381E'; ctx.lineWidth = 2.4;
+                ctx.beginPath(); ctx.roundRect(-24, -34, 48, 13, 4); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#FFFDF5'; ctx.beginPath();
+                ctx.moveTo(-20, -21); ctx.lineTo(20, -21); ctx.lineTo(15, 28); ctx.lineTo(-15, 28);
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#3E2723'; ctx.beginPath();
+                ctx.arc(-7, -4, 2.3, 0, Math.PI * 2); ctx.arc(7, -4, 2.3, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#3E2723'; ctx.lineWidth = 2.0; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.arc(0, 0, 5, 0.2, Math.PI - 0.2); ctx.stroke();
+                ctx.restore();
+            },
+            stickerMatcha(ctx, x, y, s = 1.1) {
+                ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+                ctx.fillStyle = '#689F38'; ctx.strokeStyle = '#33691E'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.ellipse(18, -20, 10, 5, -0.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(26, -14, 8, 4, 0.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#C8E6C9'; ctx.beginPath(); ctx.ellipse(0, -10, 26, 8, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#2E3A23'; ctx.lineWidth = 2.4;
+                ctx.beginPath(); ctx.moveTo(-26, -10); ctx.bezierCurveTo(-26, 20, -14, 26, 0, 26); ctx.bezierCurveTo(14, 26, 26, 20, 26, -10); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.strokeStyle = '#2E3A23'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.arc(-8, 3, 3.5, Math.PI, 0); ctx.stroke();
+                ctx.beginPath(); ctx.arc(8, 3, 3.5, Math.PI, 0); ctx.stroke();
+                ctx.beginPath(); ctx.arc(0, 7, 4, 0.2, Math.PI - 0.2); ctx.stroke();
+                ctx.restore();
+            },
+            reginaAvatar(ctx, x, y, r = 22) {
+                ctx.save();
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = '#f3d0d7'; ctx.fill();
+                ctx.fillStyle = '#f6d365'; ctx.beginPath(); ctx.arc(x, y - 2, r * 0.85, Math.PI, 0); ctx.fill();
+                ctx.fillStyle = '#ffdfd3'; ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#333333'; ctx.beginPath(); ctx.arc(x - 4, y - 1, 2, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#e75480'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y + 2.5, 4, 0.1, Math.PI - 0.1); ctx.stroke();
+                ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.arc(x - 14, y + 14, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.4; ctx.stroke();
+                ctx.restore();
+            },
+            omarAvatar(ctx, x, y, r = 22) {
+                ctx.save();
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = '#cbd5e1'; ctx.fill();
+                ctx.fillStyle = '#fcd34d'; ctx.beginPath(); ctx.arc(x, y - 2, r * 0.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(x, y - 4, r * 0.55, Math.PI, 0); ctx.fill();
+                ctx.fillStyle = '#333333'; ctx.beginPath(); ctx.arc(x, y + r + 2, r * 0.85, Math.PI * 1.2, Math.PI * 1.8); ctx.fill();
+                ctx.restore();
+            },
+            heart(ctx, x, y, s = 8) {
+                ctx.save();
+                ctx.fillStyle = '#e1306c'; ctx.beginPath();
+                ctx.moveTo(x, y + s*0.6);
+                ctx.bezierCurveTo(x - s, y - s*0.2, x - s, y - s*0.9, x, y - s*0.5);
+                ctx.bezierCurveTo(x + s, y - s*0.9, x + s, y - s*0.2, x, y + s*0.6);
+                ctx.fill(); ctx.restore();
+            }
+        };
+
+        function drawWhatsAppWallpaper(ctx, x, y, w, h) {
+            ctx.save(); ctx.fillStyle = '#EFEAE2'; ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.038)'; ctx.lineWidth = 1.2; const spacing = 48;
+            for (let px = x + 16; px < x + w; px += spacing) {
+                for (let py = y + 16; py < y + h; py += spacing) {
+                    ctx.beginPath();
+                    if ((px + py) % 4 === 0) ctx.arc(px, py, 4, 0, Math.PI * 2);
+                    else if ((px + py) % 3 === 0) ctx.roundRect(px - 4, py - 4, 8, 8, 2);
+                    else { ctx.moveTo(px - 3, py); ctx.lineTo(px + 3, py); ctx.moveTo(px, py - 3); ctx.lineTo(px, py + 3); }
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        // Draw Unified iPhone 16 Pro Dynamic Island & Sensors
+        function drawDynamicIsland(ctx, topY) {
+            ctx.save();
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.roundRect(-46, topY + 12, 92, 26, 13);
+            ctx.fill();
+
+            // Camera Sensor Lens Reflection
+            ctx.fillStyle = '#141416';
+            ctx.beginPath();
+            ctx.arc(22, topY + 25, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        async function prepareIdentity() {
+            await document.fonts.ready;
+            const [wa, ms, ig, gm] = await Promise.all([
+                fetchIconify('whatsapp', 'logos:whatsapp-icon'),
+                fetchIconify('messenger', 'logos:messenger'),
+                fetchIconify('instagram', 'logos:instagram-icon'),
+                fetchIconify('gmail', 'logos:google-gmail')
+            ]);
+            appLogos.whatsapp = wa;
+            appLogos.messenger = ms;
+            appLogos.instagram = ig;
+            appLogos.gmail = gm;
+        }
+
+        // ============ MAIN RENDERING ENGINE ============
+        async function drawSceneAtTime(time) {
+            ctx.clearRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // 1. Studio Canvas Background (NO GRID)
+            ctx.fillStyle = '#f5f5f5';
+            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // Ambient Center Studio Glow
+            const centerGlow = ctx.createRadialGradient(
+                CONFIG.width / 2, CONFIG.height / 2 + 100, 80,
+                CONFIG.width / 2, CONFIG.height / 2 + 100, CONFIG.width * 0.85
+            );
+            centerGlow.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+            centerGlow.addColorStop(1, 'rgba(243, 244, 246, 0.2)');
+            ctx.fillStyle = centerGlow;
+            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // =========================================================================
+            // PHASE 1: OPENING TYPOGRAPHY WITH UPWARD KINETIC DISSOLVE (0.0s - 2.8s)
+            // =========================================================================
+            if (time < 2.8) {
+                // Smooth Upward Kinetic Lift Exit instead of sudden cut
+                const exitProgress = clamp((time - 1.9) / 0.65);
+                const introAlpha = clamp(1.0 - exitProgress);
+                const upwardLiftY = -easeOutExpo(exitProgress) * 70;
+
+                ctx.save();
+                ctx.globalAlpha = introAlpha;
+                ctx.translate(0, upwardLiftY);
+
+                // 1. Floating Dock with 4 Real Iconify Logos
+                const dockW = 340, dockH = 68;
+                const dockY = CONFIG.height / 2 - 130;
+                const dockProg = springOvershoot(clamp(time / 0.7), 1.85);
+
+                ctx.save();
+                ctx.translate(CONFIG.width / 2, dockY);
+                ctx.scale(dockProg, dockProg);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.roundRect(-dockW/2, -dockH/2, dockW, dockH, 34); ctx.fill();
+                ctx.strokeStyle = '#e5e5ea'; ctx.lineWidth = 1.5; ctx.stroke();
+
+                const iconsList = [
+                    { img: appLogos.whatsapp, x: -110 },
+                    { img: appLogos.messenger, x: -38 },
+                    { img: appLogos.instagram, x: 38 },
+                    { img: appLogos.gmail, x: 110 }
+                ];
+
+                iconsList.forEach(ic => {
+                    if (ic.img) {
+                        ctx.drawImage(ic.img, ic.x - 16, -16, 32, 32);
+                    }
+                });
+                ctx.restore();
+
+                // 2. Speed Cascade Kinetic Headline
+                const words = [
+                    { text: "ربط", start: 0.25, dur: 0.38, tension: 1.6 },
+                    { text: "متكامل", start: 0.42, dur: 0.34, tension: 1.7 },
+                    { text: "وأتمتة", start: 0.58, dur: 0.30, tension: 1.8 },
+                    { text: "شاملة", start: 0.72, dur: 0.26, tension: 1.9 },
+                    { text: "لكافة", start: 0.84, dur: 0.24, tension: 2.0 },
+                    { text: "محادثاتك", start: 0.94, dur: 0.22, tension: 2.1 },
+                    { text: "وبريدك", start: 1.04, dur: 0.20, tension: 2.1 },
+                    { text: "الإلكتروني", start: 1.14, dur: 0.20, tension: 2.2 }
+                ];
+
+                ctx.font = "900 52px 'IBM Plex Sans Arabic'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                const wordGap = 20;
+                const wordWidths = words.map(w => ctx.measureText(w.text).width);
+                const totalWidth = wordWidths.reduce((a, b) => a + b, 0) + (words.length - 1) * wordGap;
+                let currentX = (CONFIG.width / 2) + (totalWidth / 2);
+
+                words.forEach((w) => {
+                    const wWidth = ctx.measureText(w.text).width;
+                    const wCenter = currentX - wWidth / 2;
+                    currentX -= (wWidth + wordGap);
+
+                    const elapsed = time - w.start;
+                    if (elapsed > 0) {
+                        const progress = clamp(elapsed / w.dur);
+                        const snap = easeOutExpo(progress);
+                        const bounce = Math.sin(progress * Math.PI) * 0.05;
+                        const finalP = clamp(snap + bounce);
+                        const slideY = (1 - finalP) * 55;
+                        const wordAlpha = clamp(elapsed / 0.16);
+
+                        ctx.save();
+                        ctx.globalAlpha = introAlpha * wordAlpha;
+                        ctx.translate(wCenter, CONFIG.height / 2 + 10 + slideY);
+                        ctx.fillStyle = '#0a0f1d';
+                        ctx.fillText(w.text, 0, 0);
+                        ctx.restore();
+                    }
+                });
+
+                ctx.restore();
+                if (time < 2.0) return;
+            }
+
+            // =========================================================================
+            // 4 UNIFIED iPHONE 16 PRO DEVICES (BOTTOM-ANCHORED MACRO FRAMES)
+            // =========================================================================
+            const phoneW = 560;
+            const topY = 90;
+            const phoneH = CONFIG.height - topY;
+
+            const devices = {
+                wa: { x: 340 },   // 1. WhatsApp iOS
+                ms: { x: 1000 },  // 2. Messenger iOS
+                ig: { x: 1660 },  // 3. Instagram iOS
+                gm: { x: 2320 }   // 4. Gmail iOS
+            };
+
+            // Seamless Continuous Macro Camera (No Zoom-Out)
+            let camX = devices.wa.x;
+            const camScale = 1.0;
+
+            if (time < 7.5) {
+                camX = devices.wa.x;
+            } else if (time < 13.0) {
+                const p = easeInOutExpo((time - 7.5) / 1.5);
+                camX = devices.wa.x + (devices.ms.x - devices.wa.x) * p;
+            } else if (time < 18.5) {
+                const p = easeInOutExpo((time - 13.0) / 1.5);
+                camX = devices.ms.x + (devices.ig.x - devices.ms.x) * p;
+            } else {
+                const p = easeInOutExpo((time - 18.5) / 1.5);
+                camX = devices.ig.x + (devices.gm.x - devices.ig.x) * p;
+            }
+
+            const breath = Math.sin(time * 2.0) * 1.5;
+
+            ctx.save();
+            ctx.translate(CONFIG.width / 2, 0);
+            ctx.scale(camScale, camScale);
+            ctx.translate(-camX, breath);
+
+            // =========================================================================
+            // 1. iPHONE 1: WHATSAPP iOS (TAYLOR - RTL)
+            // =========================================================================
+            ctx.save();
+            ctx.translate(devices.wa.x, 0);
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY, phoneW, phoneH + 100, [56, 56, 0, 0]);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
+            const edgeGrad1 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 400);
+            edgeGrad1.addColorStop(0, '#f5f5f5'); edgeGrad1.addColorStop(0.5, '#e5e5e5'); edgeGrad1.addColorStop(1, '#d4d4d8');
+            ctx.strokeStyle = edgeGrad1; ctx.lineWidth = 6.0; ctx.stroke();
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2 + 6, topY + 6, phoneW - 12, phoneH + 100, [50, 50, 0, 0]); ctx.clip();
+            drawWhatsAppWallpaper(ctx, -phoneW / 2, topY, phoneW, phoneH + 50);
+
+            // Header Bar
+            const waHeaderH = 120;
+            ctx.fillStyle = '#F6F6F6'; ctx.fillRect(-phoneW / 2, topY, phoneW, waHeaderH);
+            ctx.strokeStyle = '#E0E0E0'; ctx.lineWidth = 1.0; ctx.beginPath(); ctx.moveTo(-phoneW / 2, topY + waHeaderH); ctx.lineTo(phoneW / 2, topY + waHeaderH); ctx.stroke();
+
+            // Dynamic Island
+            drawDynamicIsland(ctx, topY);
+
+            // Status Bar
+            ctx.font = "700 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#000000';
+            ctx.textAlign = 'right'; ctx.fillText("10:13", phoneW / 2 - 36, topY + 34);
+            ctx.textAlign = 'left'; ctx.fillText("5G", -phoneW / 2 + 36, topY + 34);
+            drawNativeSVG(ctx, SVG_PATHS.wifi, -phoneW / 2 + 64, topY + 31, 14, '#000000', 1.8);
+            drawNativeBattery(ctx, -phoneW / 2 + 96, topY + 31, 0.85, '#000000');
+
+            const waHY = topY + 84;
+            drawNativeSVG(ctx, SVG_PATHS.chevronRight, phoneW / 2 - 32, waHY, 20, '#007AFF', 2.6);
+            ctx.font = "600 17px 'Plus Jakarta Sans'"; ctx.fillStyle = '#007AFF'; ctx.textAlign = 'center'; ctx.fillText("1", phoneW / 2 - 56, waHY + 6);
+
+            // Avatar
+            const avX1 = phoneW / 2 - 96;
+            ctx.beginPath(); ctx.arc(avX1, waHY, 24, 0, Math.PI * 2); ctx.fillStyle = '#C89666'; ctx.fill();
+            ctx.fillStyle = '#FFE0BD'; ctx.beginPath(); ctx.arc(avX1, waHY - 3, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#5D4037'; ctx.beginPath(); ctx.arc(avX1, waHY - 6, 11, Math.PI, 0); ctx.fill();
+            ctx.fillStyle = '#007AFF'; ctx.beginPath(); ctx.arc(avX1, waHY + 15, 14, Math.PI, 0); ctx.fill();
+
+            ctx.textAlign = 'right'; ctx.font = "800 18px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000'; ctx.fillText("أحمد محمود", phoneW / 2 - 136, waHY - 6);
+            ctx.font = "500 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#8E8E93'; ctx.fillText("متصل الآن", phoneW / 2 - 136, waHY + 14);
+
+            drawNativeSVG(ctx, SVG_PATHS.video, -phoneW / 2 + 82, waHY, 22, '#007AFF', 2.2);
+            drawNativeSVG(ctx, SVG_PATHS.phone, -phoneW / 2 + 38, waHY, 20, '#007AFF', 2.2);
+
+            // Chat Feed
+            const waFeedY = topY + waHeaderH + 24;
+            ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(-36, waFeedY, 72, 24, 12); ctx.fill();
+            ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText("اليوم", 0, waFeedY + 12);
+
+            // 1. Sticker 1: Coffee
+            const waSt1 = springOvershoot(clamp((time - 2.2) / 0.7), 1.9);
+            if (waSt1 > 0) {
+                ctx.save(); ctx.translate(phoneW / 2 - 110, waFeedY + 90); ctx.scale(waSt1, waSt1);
+                CustomSVGs.stickerCoffee(ctx, 0, 0, 1.2); CustomSVGs.forwardArrow(ctx, -64, 6);
+                ctx.font = "500 11px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'right'; ctx.fillText("10:11 AM", 28, 50);
+                ctx.restore();
+            }
+            // 2. Message 1
+            const waM1 = springOvershoot(clamp((time - 3.0) / 0.6), 1.8);
+            if (waM1 > 0) {
+                ctx.save(); const bW = 340, bH = 78;
+                ctx.translate(phoneW / 2 - 20 - bW, waFeedY + 165); ctx.scale(waM1, waM1);
+                ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [16, 4, 16, 16]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000';
+                ctx.fillText("مرحباً!", bW - 16, 12); ctx.fillText("أردت الاطمئنان عليك - هل أنت في", bW - 16, 32); ctx.fillText("المكتب هذا الأسبوع؟", bW - 16, 52);
+                ctx.font = "500 10.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'left'; ctx.fillText("10:11 AM", 16, bH - 20);
+                ctx.restore();
+            }
+            // 3. Message 2
+            const waM2 = springOvershoot(clamp((time - 4.0) / 0.6), 1.8);
+            if (waM2 > 0) {
+                ctx.save(); ctx.translate(-phoneW / 2 + 20, waFeedY + 265); ctx.scale(waM2, waM2);
+                const b1W = 220, b1H = 36; ctx.fillStyle = '#E1FFC7'; ctx.beginPath(); ctx.roundRect(0, 0, b1W, b1H, [4, 16, 16, 16]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = "600 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000';
+                ctx.fillText("أهلاً! أنا خارج المكتب", b1W - 14, 18);
+                ctx.font = "500 10.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'left'; ctx.fillText("10:12 AM", 24, 19);
+                CustomSVGs.doubleBlueTick(ctx, 12, 19);
+
+                const b2W = 200, b2H = 36; ctx.fillStyle = '#E1FFC7'; ctx.beginPath(); ctx.roundRect(0, 42, b2W, b2H, 16); ctx.fill();
+                ctx.fillStyle = '#000000'; ctx.textAlign = 'right'; ctx.fillText("نلتقي الإثنين القادم؟", b2W - 14, 60);
+                ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'left'; ctx.fillText("10:12 AM", 24, 61);
+                CustomSVGs.doubleBlueTick(ctx, 12, 61);
+                ctx.restore();
+            }
+            // 4. Message 3
+            const waM3 = springOvershoot(clamp((time - 5.0) / 0.6), 1.8);
+            if (waM3 > 0) {
+                ctx.save(); const bW = 240, bH = 60;
+                ctx.translate(phoneW / 2 - 20 - bW, waFeedY + 365); ctx.scale(waM3, waM3);
+                ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [16, 4, 16, 16]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000';
+                ctx.fillText("يبدو جيداً. استمتع ببقية", bW - 16, 12); ctx.fillText("أسبوعك!", bW - 16, 32);
+                ctx.font = "500 10.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'left'; ctx.fillText("10:13 AM", 16, bH - 20);
+                ctx.restore();
+            }
+            // 5. Sticker 2: Matcha
+            const waSt2 = springOvershoot(clamp((time - 5.8) / 0.7), 1.9);
+            if (waSt2 > 0) {
+                ctx.save(); ctx.translate(-phoneW / 2 + 110, waFeedY + 475); ctx.scale(waSt2, waSt2);
+                CustomSVGs.stickerMatcha(ctx, 0, 0, 1.2); CustomSVGs.forwardArrow(ctx, 64, 6);
+                ctx.font = "500 10.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'left'; ctx.fillText("10:13 AM", -48, 48);
+                CustomSVGs.doubleBlueTick(ctx, -62, 47);
+                ctx.restore();
+            }
+
+            const glint1 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 500);
+            glint1.addColorStop(0, 'rgba(255, 255, 255, 0.4)'); glint1.addColorStop(0.35, 'rgba(255, 255, 255, 0.05)'); glint1.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = glint1; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH);
+
+            ctx.restore(); ctx.restore();
+
+            // =========================================================================
+            // 2. iPHONE 2: MESSENGER iOS (REGINA - RTL)
+            // =========================================================================
+            ctx.save();
+            ctx.translate(devices.ms.x, 0);
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY, phoneW, phoneH + 100, [56, 56, 0, 0]);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
+            const edgeGrad2 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 400);
+            edgeGrad2.addColorStop(0, '#f5f5f5'); edgeGrad2.addColorStop(0.5, '#e5e5e5'); edgeGrad2.addColorStop(1, '#d4d4d8');
+            ctx.strokeStyle = edgeGrad2; ctx.lineWidth = 6.0; ctx.stroke();
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2 + 6, topY + 6, phoneW - 12, phoneH + 100, [50, 50, 0, 0]); ctx.clip();
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH + 50);
+
+            // Dynamic Island on Messenger iPhone
+            drawDynamicIsland(ctx, topY);
+
+            // Status Bar
+            ctx.font = "700 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#0a0f1d';
+            ctx.textAlign = 'right'; ctx.fillText("17:17", phoneW / 2 - 36, topY + 34);
+            ctx.textAlign = 'left'; ctx.fillText("5G", -phoneW / 2 + 36, topY + 34);
+            drawNativeSVG(ctx, SVG_PATHS.wifi, -phoneW / 2 + 64, topY + 31, 14, '#0a0f1d', 1.8);
+            drawNativeBattery(ctx, -phoneW / 2 + 96, topY + 31, 0.24, '#0a0f1d');
+
+            // Header Bar
+            const msHY = topY + 84;
+            drawNativeSVG(ctx, SVG_PATHS.chevronRight, phoneW / 2 - 32, msHY, 20, '#0084FF', 2.8);
+            const avX2 = phoneW / 2 - 96;
+            CustomSVGs.reginaAvatar(ctx, avX2, msHY, 22);
+            ctx.textAlign = 'right'; ctx.font = "800 18px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#050505'; ctx.fillText("Regina", phoneW / 2 - 136, msHY - 6);
+            ctx.font = "500 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#65676B'; ctx.fillText("نشط الآن", phoneW / 2 - 136, msHY + 14);
+
+            drawNativeSVG(ctx, SVG_PATHS.phone, -phoneW / 2 + 140, msHY, 20, '#0084FF', 2.2);
+            drawNativeSVG(ctx, SVG_PATHS.video, -phoneW / 2 + 90, msHY, 22, '#0084FF', 2.2);
+            drawNativeSVG(ctx, SVG_PATHS.info, -phoneW / 2 + 40, msHY, 22, '#0084FF', 2.0, true);
+
+            ctx.strokeStyle = '#F0F2F5'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-phoneW / 2, topY + waHeaderH); ctx.lineTo(phoneW / 2, topY + waHeaderH); ctx.stroke();
+
+            // 11 Lines
+            const msMessages = [
+                { text: "مرحباً", isUser: true, t: 7.6 },
+                { text: "أهلاً", isUser: false, t: 8.0 },
+                { text: "كيف يمكنني مساعدتك؟", isUser: false, t: 8.5 },
+                { text: "بصراحة لا أعرف", isUser: true, t: 9.0 },
+                { text: "هل يمكنك إخباري بنكتة؟", isUser: true, t: 9.5 },
+                { text: "هل سمعت عن المطعم الجديد\nالذي يسمى كارما؟", isUser: false, t: 10.1 },
+                { text: "لا، لم أسمع به", isUser: true, t: 10.7 },
+                { text: "لا يوجد لديهم قائمة طعام،\nستحصل على ما تستحقه فقط!", isUser: false, t: 11.2 },
+                { text: "هههههه :D", isUser: true, t: 11.8 },
+                { text: "هل تشعر بتحسن الآن؟", isUser: false, t: 12.2 },
+                { text: "نعم، شكراً لك!", isUser: true, t: 12.6 }
+            ];
+
+            let msScrollY = 0;
+            if (time >= 9.8) {
+                const p = easeInOutCubic(clamp((time - 9.8) / 2.8));
+                msScrollY = p * 440;
+            }
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY + waHeaderH + 1, phoneW, phoneH, 0); ctx.clip();
+            ctx.translate(0, -msScrollY);
+
+            let msCurrY = topY + waHeaderH + 20;
+            msMessages.forEach((msg) => {
+                const p = springOvershoot(clamp((time - msg.t) / 0.5), 1.8);
+                if (p > 0) {
+                    ctx.save();
+                    const lines = msg.text.split('\n'); ctx.font = "600 16px 'IBM Plex Sans Arabic'";
+                    let maxW = 0; lines.forEach(l => { const w = ctx.measureText(l).width; if (w > maxW) maxW = w; });
+                    const padX = 18, padY = 12; const bW = maxW + padX * 2; const bH = lines.length * 24 + padY * 2;
+
+                    if (msg.isUser) {
+                        ctx.translate(-phoneW / 2 + 24, msCurrY); ctx.scale(p, p);
+                        ctx.fillStyle = '#0084FF'; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 20, 4]); ctx.fill();
+                        ctx.fillStyle = '#ffffff'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+                        lines.forEach((line, li) => { ctx.fillText(line, bW - padX, padY + li * 24); });
+                    } else {
+                        ctx.translate(phoneW / 2 - 24 - 44 - bW, msCurrY); ctx.scale(p, p);
+                        CustomSVGs.reginaAvatar(ctx, bW + 22, bH - 16, 16);
+                        ctx.fillStyle = '#F0F2F5'; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 4, 20]); ctx.fill();
+                        ctx.fillStyle = '#050505'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+                        lines.forEach((line, li) => { ctx.fillText(line, bW - padX, padY + li * 24); });
+                    }
+                    ctx.restore();
+                    msCurrY += bH + 14;
+                }
+            });
+            ctx.restore();
+
+            const glint2 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 500);
+            glint2.addColorStop(0, 'rgba(255, 255, 255, 0.4)'); glint2.addColorStop(0.35, 'rgba(255, 255, 255, 0.05)'); glint2.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = glint2; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH);
+
+            ctx.restore(); ctx.restore();
+
+            // =========================================================================
+            // 3. iPHONE 3: INSTAGRAM DIRECT iOS (OMAR - RTL)
+            // =========================================================================
+            ctx.save();
+            ctx.translate(devices.ig.x, 0);
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY, phoneW, phoneH + 100, [56, 56, 0, 0]);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
+            const edgeGrad3 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 400);
+            edgeGrad3.addColorStop(0, '#f5f5f5'); edgeGrad3.addColorStop(0.5, '#e5e5e5'); edgeGrad3.addColorStop(1, '#d4d4d8');
+            ctx.strokeStyle = edgeGrad3; ctx.lineWidth = 6.0; ctx.stroke();
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2 + 6, topY + 6, phoneW - 12, phoneH + 100, [50, 50, 0, 0]); ctx.clip();
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH + 50);
+
+            // Dynamic Island on Instagram iPhone
+            drawDynamicIsland(ctx, topY);
+
+            // Header
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(-phoneW / 2, topY, phoneW, waHeaderH);
+            ctx.font = "700 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#000000';
+            ctx.textAlign = 'right'; ctx.fillText("9:41", phoneW / 2 - 36, topY + 34);
+            ctx.textAlign = 'left'; ctx.fillText("5G", -phoneW / 2 + 36, topY + 34);
+            drawNativeSVG(ctx, SVG_PATHS.wifi, -phoneW / 2 + 64, topY + 31, 14, '#000000', 1.8);
+            drawNativeBattery(ctx, -phoneW / 2 + 96, topY + 31, 0.95, '#000000');
+
+            const igHY = topY + 84;
+            drawNativeSVG(ctx, SVG_PATHS.chevronRight, phoneW / 2 - 32, igHY, 20, '#000000', 2.6);
+
+            const avX3 = phoneW / 2 - 82;
+            CustomSVGs.omarAvatar(ctx, avX3, igHY, 22);
+            ctx.textAlign = 'right'; ctx.font = "800 18px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000'; ctx.fillText("عمر خالد", phoneW / 2 - 116, igHY - 4);
+            ctx.font = "500 13px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.fillText("omar_khaled_", phoneW / 2 - 116, igHY + 14);
+
+            drawNativeSVG(ctx, SVG_PATHS.phone, -phoneW / 2 + 88, igHY, 20, '#000000', 2.2);
+            drawNativeSVG(ctx, SVG_PATHS.video, -phoneW / 2 + 38, igHY, 22, '#000000', 2.2);
+
+            ctx.strokeStyle = '#F0F2F5'; ctx.lineWidth = 1.0; ctx.beginPath(); ctx.moveTo(-phoneW / 2, topY + waHeaderH); ctx.lineTo(phoneW / 2, topY + waHeaderH); ctx.stroke();
+
+            // IG Chat Feed
+            let igScrollY = 0;
+            if (time >= 15.5) {
+                const p = easeInOutCubic(clamp((time - 15.5) / 2.5));
+                igScrollY = p * 180;
+            }
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY + waHeaderH + 1, phoneW, phoneH, 0); ctx.clip();
+            ctx.translate(0, -igScrollY);
+
+            const igFeedY = topY + waHeaderH + 30;
+            ctx.font = "600 12px 'Plus Jakarta Sans'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText("10:20 AM", 0, igFeedY);
+
+            // 1. Message 1
+            const igM1 = springOvershoot(clamp((time - 13.2) / 0.5), 1.8);
+            if (igM1 > 0) {
+                ctx.save(); const bW = 340, bH = 60;
+                ctx.translate(phoneW / 2 - 24 - bW, igFeedY + 45); ctx.scale(igM1, igM1);
+                CustomSVGs.omarAvatar(ctx, bW + 34, bH / 2, 14);
+                ctx.fillStyle = '#EFEFEF'; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 4, 20]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000';
+                ctx.fillText("أهلاً، ممكن كود الخصم ورابط", bW - 18, 12); ctx.fillText("الاشتراك المباشر للخدمة؟", bW - 18, 34);
+                ctx.restore();
+            }
+            // 2. Message 2 (Purple)
+            const igM2 = springOvershoot(clamp((time - 14.0) / 0.5), 1.8);
+            if (igM2 > 0) {
+                ctx.save(); const bW = 360, bH = 60;
+                ctx.translate(-phoneW / 2 + 24, igFeedY + 125); ctx.scale(igM2, igM2);
+                const purpleGrad = ctx.createLinearGradient(bW, 0, 0, 0);
+                purpleGrad.addColorStop(0, '#A220FF'); purpleGrad.addColorStop(1, '#8A00E6');
+                ctx.fillStyle = purpleGrad; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 20, 4]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff';
+                ctx.fillText("أهلاً بك! تم تفعيل كود خصم 30% لك 🚀", bW - 18, 12); ctx.fillText("الرابط المباشر جاهز لبدء تجربتك فوراً.", bW - 18, 34);
+                ctx.restore();
+            }
+            // 3. Message 3 + Heart
+            const igM3 = springOvershoot(clamp((time - 15.0) / 0.5), 1.8);
+            if (igM3 > 0) {
+                ctx.save(); const bW = 280, bH = 40;
+                ctx.translate(phoneW / 2 - 24 - bW, igFeedY + 205); ctx.scale(igM3, igM3);
+                CustomSVGs.omarAvatar(ctx, bW + 34, bH / 2, 14);
+                ctx.fillStyle = '#EFEFEF'; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 4, 20]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#000000';
+                ctx.fillText("ممتاز جداً! كيف يمكنني البدء؟", bW - 18, 11);
+
+                const heartProg = springOvershoot(clamp((time - 15.4) / 0.4), 2.0);
+                if (heartProg > 0) {
+                    ctx.save(); ctx.translate(24, bH); ctx.scale(heartProg, heartProg);
+                    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#EFEFEF'; ctx.lineWidth = 1; ctx.stroke();
+                    CustomSVGs.heart(ctx, 0, -2, 6);
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+            // 4. Message 4
+            const igM4 = springOvershoot(clamp((time - 16.2) / 0.5), 1.8);
+            if (igM4 > 0) {
+                ctx.save(); const bW = 340, bH = 60;
+                ctx.translate(-phoneW / 2 + 24, igFeedY + 275); ctx.scale(igM4, igM4);
+                const purpleGrad = ctx.createLinearGradient(bW, 0, 0, 0);
+                purpleGrad.addColorStop(0, '#A220FF'); purpleGrad.addColorStop(1, '#8A00E6');
+                ctx.fillStyle = purpleGrad; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 20, 4]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff';
+                ctx.fillText("يمكنك البدء مجاناً عبر الرابط المباشر", bW - 18, 12); ctx.fillText("وإلغاء الاشتراك بكل سهولة في أي وقت.", bW - 18, 34);
+                ctx.restore();
+            }
+            // 5. Message 5 (Edited)
+            const igM5 = springOvershoot(clamp((time - 17.2) / 0.5), 1.8);
+            if (igM5 > 0) {
+                ctx.save(); const bW = 310, bH = 40;
+                ctx.translate(-phoneW / 2 + 24, igFeedY + 365); ctx.scale(igM5, igM5);
+                ctx.font = "600 11px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#8E8E93'; ctx.textAlign = 'left'; ctx.fillText("معدّل", 0, -8);
+                const purpleGrad = ctx.createLinearGradient(bW, 0, 0, 0);
+                purpleGrad.addColorStop(0, '#A220FF'); purpleGrad.addColorStop(1, '#8A00E6');
+                ctx.fillStyle = purpleGrad; ctx.beginPath(); ctx.roundRect(0, 0, bW, bH, [20, 20, 20, 4]); ctx.fill();
+                ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = "600 15.5px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff';
+                ctx.fillText("تم إرسال رابط التفعيل لحسابك 👑", bW - 18, 11);
+                ctx.restore();
+            }
+            ctx.restore();
+
+            const glint3 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 500);
+            glint3.addColorStop(0, 'rgba(255, 255, 255, 0.4)'); glint3.addColorStop(0.35, 'rgba(255, 255, 255, 0.05)'); glint3.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = glint3; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH);
+
+            ctx.restore(); ctx.restore();
+
+            // =========================================================================
+            // 4. iPHONE 4: GMAIL iOS APP (UNIFIED iPHONE FRAME & FULL ARABIC CRM THREAD)
+            // =========================================================================
+            ctx.save();
+            ctx.translate(devices.gm.x, 0);
+            
+            // Unified iPhone 16 Pro Body
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY, phoneW, phoneH + 100, [56, 56, 0, 0]);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
+            const edgeGrad4 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 400);
+            edgeGrad4.addColorStop(0, '#f5f5f5'); edgeGrad4.addColorStop(0.5, '#e5e5e5'); edgeGrad4.addColorStop(1, '#d4d4d8');
+            ctx.strokeStyle = edgeGrad4; ctx.lineWidth = 6.0; ctx.stroke();
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2 + 6, topY + 6, phoneW - 12, phoneH + 100, [50, 50, 0, 0]); ctx.clip();
+            ctx.fillStyle = '#F8FAFD'; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH + 50);
+
+            // Dynamic Island on Gmail iPhone
+            drawDynamicIsland(ctx, topY);
+
+            // Status Bar
+            ctx.font = "700 14px 'Plus Jakarta Sans'"; ctx.fillStyle = '#1e293b';
+            ctx.textAlign = 'right'; ctx.fillText("10:14", phoneW / 2 - 36, topY + 34);
+            ctx.textAlign = 'left'; ctx.fillText("5G", -phoneW / 2 + 36, topY + 34);
+            drawNativeSVG(ctx, SVG_PATHS.wifi, -phoneW / 2 + 64, topY + 31, 14, '#1e293b', 1.8);
+            drawNativeBattery(ctx, -phoneW / 2 + 96, topY + 31, 0.85, '#1e293b');
+
+            // Top Header Bar
+            const gmTopBarY = topY + 84;
+            drawNativeSVG(ctx, SVG_PATHS.chevronRight, phoneW / 2 - 32, gmTopBarY, 20, '#1e293b', 2.4);
+
+            // Left Header Action Icons
+            drawNativeSVG(ctx, SVG_PATHS.sparkle, -phoneW / 2 + 180, gmTopBarY, 18, '#1A73E8', 1.8, true);
+            drawNativeSVG(ctx, SVG_PATHS.snooze, -phoneW / 2 + 135, gmTopBarY, 18, '#444746', 1.8);
+            drawNativeSVG(ctx, SVG_PATHS.trash, -phoneW / 2 + 90, gmTopBarY, 18, '#444746', 1.8);
+            drawNativeSVG(ctx, SVG_PATHS.threeDots, -phoneW / 2 + 40, gmTopBarY, 18, '#444746', 1.8, true);
+
+            ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-phoneW / 2, topY + waHeaderH); ctx.lineTo(phoneW / 2, topY + waHeaderH); ctx.stroke();
+
+            // Gmail Scroll Thread
+            let gmScrollY = 0;
+            if (time >= 21.0) {
+                const p = easeInOutCubic(clamp((time - 21.0) / 2.5));
+                gmScrollY = p * 190;
+            }
+
+            ctx.save();
+            ctx.beginPath(); ctx.roundRect(-phoneW / 2, topY + waHeaderH + 1, phoneW, phoneH, 0); ctx.clip();
+            ctx.translate(0, -gmScrollY);
+
+            // Subject "إطلاق الموقع الإلكتروني"
+            ctx.textAlign = 'right'; ctx.font = "800 23px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+            ctx.fillText("إطلاق الموقع الإلكتروني الجديد", phoneW / 2 - 24, topY + 128);
+            drawNativeSVG(ctx, SVG_PATHS.star, -phoneW / 2 + 36, topY + 122, 20, '#444746', 1.8);
+
+            // Tag Pill
+            ctx.fillStyle = '#E8F0FE'; ctx.beginPath(); ctx.roundRect(phoneW / 2 - 130, topY + 144, 106, 26, 6); ctx.fill();
+            ctx.font = "700 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1A73E8';
+            ctx.textAlign = 'center'; ctx.fillText("فريق التطوير CRM", phoneW / 2 - 77, topY + 162);
+
+            // "✨ Summarize this email with Gemini AI" Pill
+            ctx.fillStyle = '#EAF1FB'; ctx.beginPath(); ctx.roundRect(-phoneW / 2 + 24, topY + 180, phoneW - 48, 40, 10); ctx.fill();
+            ctx.strokeStyle = '#D3E3FD'; ctx.lineWidth = 1; ctx.stroke();
+            drawNativeSVG(ctx, SVG_PATHS.sparkle, phoneW / 2 - 44, topY + 200, 16, '#0B57D0', 1.8, true);
+            ctx.font = "700 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#0B57D0';
+            ctx.textAlign = 'right'; ctx.fillText("تلخيص البريد بواسطة Gemini AI:", phoneW / 2 - 62, topY + 205);
+            ctx.font = "600 12px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#444746';
+            ctx.fillText("متابعة الـ SEO والـ QA، والاجتماع غداً الساعة 10:00 ص.", phoneW / 2 - 275, topY + 205);
+
+            // --- REDESIGNED ARABIC EMAIL CARDS (CLEAN SPACING & ZERO OVERLAPS) ---
+            const emailCardW = phoneW - 44;
+
+            // 1. EMAIL 1: سارة أحمد (Annie Bee)
+            const e1Prog = springOvershoot(clamp((time - 18.8) / 0.5), 1.8);
+            if (e1Prog > 0) {
+                ctx.save();
+                ctx.translate(-phoneW / 2 + 22, topY + 235);
+                ctx.scale(e1Prog, e1Prog);
+
+                const cardH = 175;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.roundRect(0, 0, emailCardW, cardH, 14); ctx.fill();
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+
+                // Avatar
+                ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(emailCardW - 28, 28, 15, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(emailCardW - 32, 26, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.arc(emailCardW - 23, 31, 5, 0, Math.PI * 2); ctx.fill();
+
+                ctx.textAlign = 'right'; ctx.font = "800 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("سارة أحمد (مديرة المشروع)", emailCardW - 54, 20);
+                ctx.font = "500 11.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5e5e5e';
+                ctx.fillText("9:35 AM", emailCardW - 225, 20);
+                ctx.font = "600 11.5px 'IBM Plex Sans Arabic'";
+                ctx.fillText("إلى: أنا، رامي، ياسمين، طارق ⌄", emailCardW - 54, 38);
+
+                drawNativeSVG(ctx, SVG_PATHS.threeDots, 24, 28, 16, '#444746', 1.8, true);
+
+                ctx.font = "600 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("مرحباً بالجميع، أود الاطمئنان على تقدم خطة إطلاق الموقع الجديد.", emailCardW - 18, 70);
+                ctx.fillText("أريد التأكد من جاهزية اعتماد المحتوى، إعدادات الـ SEO، واختبارات الجودة.", emailCardW - 18, 96);
+                ctx.fillText("سأقوم بجدولة اجتماع متابعة سريع غداً لمناقشة الخطوات القادمة.", emailCardW - 18, 122);
+                ctx.restore();
+            }
+
+            // 2. EMAIL 2: رامي جمال (Rob Gonzales)
+            const e2Prog = springOvershoot(clamp((time - 19.8) / 0.5), 1.8);
+            if (e2Prog > 0) {
+                ctx.save();
+                ctx.translate(-phoneW / 2 + 22, topY + 425);
+                ctx.scale(e2Prog, e2Prog);
+
+                const cardH = 130;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.roundRect(0, 0, emailCardW, cardH, 14); ctx.fill();
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+
+                ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(emailCardW - 28, 28, 15, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#ffdfd3'; ctx.beginPath(); ctx.arc(emailCardW - 28, 26, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#0284c7'; ctx.beginPath(); ctx.arc(emailCardW - 28, 37, 8, Math.PI, 0); ctx.fill();
+
+                ctx.textAlign = 'right'; ctx.font = "800 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("رامي جمال (مسؤول الـ SEO)", emailCardW - 54, 20);
+                ctx.font = "500 11.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5e5e5e';
+                ctx.fillText("9:40 AM", emailCardW - 215, 20);
+                ctx.font = "600 11.5px 'IBM Plex Sans Arabic'";
+                ctx.fillText("إلى: أنا، سارة، ياسمين ⌄", emailCardW - 54, 38);
+
+                drawNativeSVG(ctx, SVG_PATHS.threeDots, 24, 28, 16, '#444746', 1.8, true);
+
+                ctx.font = "600 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("أحرزنا تقدماً ممتازاً في تجهيز الـ SEO والكلمات المفتاحية، واختبارات الجودة", emailCardW - 18, 70);
+                ctx.fillText("مستمرة بنجاح. سنكون جاهزين بالكامل لاجتماع الغد!", emailCardW - 18, 96);
+                ctx.restore();
+            }
+
+            // 3. EMAIL 3: ياسمين علي (Jess Lee)
+            const e3Prog = springOvershoot(clamp((time - 20.8) / 0.5), 1.8);
+            if (e3Prog > 0) {
+                ctx.save();
+                ctx.translate(-phoneW / 2 + 22, topY + 570);
+                ctx.scale(e3Prog, e3Prog);
+
+                const cardH = 135;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath(); ctx.roundRect(0, 0, emailCardW, cardH, 14); ctx.fill();
+                ctx.strokeStyle = '#E0E3E7'; ctx.lineWidth = 1; ctx.stroke();
+
+                ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(emailCardW - 28, 28, 15, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#ec4899'; ctx.beginPath(); ctx.arc(emailCardW - 26, 28, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#fbcfe8'; ctx.beginPath(); ctx.arc(emailCardW - 32, 25, 4, 0, Math.PI * 2); ctx.fill();
+
+                ctx.textAlign = 'right'; ctx.font = "800 15px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("ياسمين علي (مسؤولة الـ QA)", emailCardW - 54, 20);
+                ctx.font = "500 11.5px 'Plus Jakarta Sans'"; ctx.fillStyle = '#5e5e5e';
+                ctx.fillText("9:45 AM", emailCardW - 215, 20);
+                ctx.font = "600 11.5px 'IBM Plex Sans Arabic'";
+                ctx.fillText("إلى: أنا، سارة، رامي ⌄", emailCardW - 54, 38);
+
+                drawNativeSVG(ctx, SVG_PATHS.threeDots, 24, 28, 16, '#444746', 1.8, true);
+
+                ctx.font = "600 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#1f1f1f';
+                ctx.fillText("خطة رائعة، الساعة 10:00 صباحاً مناسبة جداً للجميع للمراجعة النهائية", emailCardW - 18, 70);
+                ctx.fillText("قبل الضغط على زر الإطلاق الرسمي للمنظومة.", emailCardW - 18, 96);
+                ctx.restore();
+            }
+
+            // Floating Reply Buttons
+            const fabY = topY + 725;
+            ctx.fillStyle = '#0B57D0'; ctx.beginPath(); ctx.roundRect(phoneW / 2 - 175, fabY - 18, 150, 38, 19); ctx.fill();
+            drawNativeSVG(ctx, SVG_PATHS.replyAll, phoneW / 2 - 45, fabY + 1, 18, '#ffffff', 2.0);
+            ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = "800 13px 'IBM Plex Sans Arabic'"; ctx.fillStyle = '#ffffff';
+            ctx.fillText("الرد على الكل", phoneW / 2 - 68, fabY + 2);
+
+            ctx.fillStyle = '#0B57D0'; ctx.beginPath(); ctx.roundRect(phoneW / 2 - 320, fabY - 18, 135, 38, 19); ctx.fill();
+            drawNativeSVG(ctx, SVG_PATHS.forward, phoneW / 2 - 200, fabY + 1, 18, '#ffffff', 2.0);
+            ctx.fillText("إعادة توجيه", phoneW / 2 - 222, fabY + 2);
+
+            ctx.restore();
+
+            const glint4 = ctx.createLinearGradient(-phoneW / 2, topY, phoneW / 2, topY + 500);
+            glint4.addColorStop(0, 'rgba(255, 255, 255, 0.4)'); glint4.addColorStop(0.35, 'rgba(255, 255, 255, 0.05)'); glint4.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = glint4; ctx.fillRect(-phoneW / 2, topY, phoneW, phoneH);
+
+            ctx.restore(); ctx.restore();
+
+            ctx.restore(); // End Global Camera Engine
+        }
+
+        // ============ FIXED TECHNICAL LAYER (RUNTIME ENGINE) ============
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const statusText = document.getElementById('status-text');
+        const spinner = document.getElementById('spinner');
+
+        let audioAudioEl = null;
+        let sharedAudioCtx = null;
+        let state = { currentTime: 0, isRendering: false, animationFrameId: null };
+
+        window.renderStatus = 'loading';
+
+        function logToConsole(msg, type = 'info') {
+            const output = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `log-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function startPreviewLoop() {
+            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+            const startTime = performance.now();
+
+            async function loop(now) {
+                if (state.isRendering) return;
+                const elapsed = (now - startTime) / 1000;
+                const currTime = elapsed % CONFIG.duration;
+                state.currentTime = currTime;
+                await drawSceneAtTime(currTime);
+
+                if (currTime < CONFIG.duration) {
+                    state.animationFrameId = requestAnimationFrame(loop);
+                } else {
+                    statusText.textContent = "Master iPhone Suite Ready ✓";
+                    spinner.style.display = 'none';
+                }
+            }
+            state.animationFrameId = requestAnimationFrame(loop);
+        }
+
+        const OFOQ_FRAME_FORMAT = 'image/png';
+        window.__ofoqTotalFrames = 0;
+        window.__ofoqFps = 0;
+        window.__ofoqOutputFilename = '';
+        window.__ofoqAudioWavBase64 = null;
+
+        async function __ofoqGetFrameBatch(startFrame, count) {
+            const frames = [];
+            for (let i = 0; i < count; i++) {
+                const frameIndex = startFrame + i;
+                if (frameIndex >= window.__ofoqTotalFrames) break;
+                const timestamp = frameIndex / window.__ofoqFps;
+                await drawSceneAtTime(timestamp);
+                const dataUrl = canvas.toDataURL(OFOQ_FRAME_FORMAT);
+                frames.push(dataUrl.substring(dataUrl.indexOf(',') + 1));
+            }
+            return frames;
+        }
+        window.__ofoqGetFrameBatch = __ofoqGetFrameBatch;
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            statusText.textContent = "Replaying Suite Simulation...";
+            spinner.style.display = 'inline-block';
+            startPreviewLoop();
+        });
+
+        document.getElementById('btn-toggle-console').addEventListener('click', () => {
+            const modal = document.getElementById('console-modal');
+            modal.style.display = modal.style.display === 'flex' ? 'none' : 'flex';
+        });
+
+        document.getElementById('btn-close-console').addEventListener('click', () => {
+            document.getElementById('console-modal').style.display = 'none';
+        });
+
+        document.getElementById('btn-render-start').addEventListener('click', () => {
+            logToConsole("Export handled via OFOQ runner (Node + ffmpeg).", 'warn');
+        });
+
+        async function init() {
+            try {
+                await prepareIdentity();
+                canvas.width = CONFIG.width;
+                canvas.height = CONFIG.height;
+
+                const viewport = document.getElementById('viewport');
+                viewport.style.aspectRatio = `${CONFIG.width} / ${CONFIG.height}`;
+                viewport.style.width = `min(94vw, calc(86vh * (${CONFIG.width} / ${CONFIG.height})))`;
+
+                window.__ofoqFps = CONFIG.fps;
+                window.__ofoqTotalFrames = Math.ceil(CONFIG.duration * CONFIG.fps);
+                window.__ofoqOutputFilename = `${OUTPUT_FILENAME}.mp4`;
+
+                statusText.textContent = "Master iPhone Suite Ready ✓";
+                spinner.style.display = 'none';
+                window.renderStatus = 'ready';
+                
+                await drawSceneAtTime(0);
+                startPreviewLoop();
+            } catch (err) {
+                logToConsole("Initialization error: " + err.message, 'error');
+                statusText.textContent = "Error loading scene";
+                window.__renderError = err.message;
+                window.renderStatus = 'error';
+            }
+        }
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
