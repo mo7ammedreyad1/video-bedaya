@@ -42,7 +42,7 @@ const GEMINI_API_KEYS = (process.env.GEMINI_API_KEYS || process.env.GEMINI_API_K
 let currentKeyIndex = 0;
 // سلسلة نماذج احتياطية — التبديل تلقائي للي بعده لما نستنفد محاولات إعادة الاتصال
 // على النموذج الحالي. مرتبة من الأعلى قدرة للأكرم في حدود الخطة المجانية (RPM).
-const MODEL_CHAIN = (process.env.GEMINI_MODEL_CHAIN || 'gemini-3.5-flash-lite,gemini-3.5-flash-lite,gemini-3.0-flash')
+const MODEL_CHAIN = (process.env.GEMINI_MODEL_CHAIN || 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemma-4-31b-it')
   .split(',').map((s) => s.trim()).filter(Boolean);
 let currentModelIndex = 0;
 
